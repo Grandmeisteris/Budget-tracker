@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Budget Tracker</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --text: #f0f0f0;
+    --muted: #888;
+    --green: #22c55e;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --yellow: #eab308;
+    --radius: 12px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; padding-bottom: 80px; }
+
+  /* HEADER */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .app-title { font-size: 17px; font-weight: 600; color: var(--text); }
+  .month-nav { display: flex; align-items: center; gap: 12px; }
+  .month-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); width: 32px; height: 32px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .month-name { font-size: 16px; font-weight: 600; min-width: 90px; text-align: center; }
+
+  /* SUMMARY CARDS */
+  .summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 16px 16px 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+  .card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .card-value { font-size: 18px; font-weight: 700; }
+  .card-value.green { color: var(--green); }
+  .card-value.red { color: var(--red); }
+  .card-value.blue { color: var(--blue); }
+  .card-wide { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 8px 16px 0; display: flex; align-items: center; justify-content: space-between; }
+  .progress-wrap { flex: 1; margin: 0 12px; }
+  .progress-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 0; padding: 16px 16px 0; }
+  .tab-btn { flex: 1; padding: 10px 4px; font-size: 13px; font-weight: 500; color: var(--muted); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: var(--font); transition: all 0.15s; }
+  .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* ADD FORM */
+  .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin: 12px 16px; padding: 14px; }
+  .form-row { display: flex; gap: 8px; margin-bottom: 8px; }
+  .form-row:last-child { margin-bottom: 0; }
+  select, input[type="number"], input[type="text"], input[type="date"] {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: var(--font); font-size: 14px; padding: 10px 12px;
+    appearance: none; -webkit-appearance: none; outline: none; width: 100%;
+  }
+  select:focus, input:focus { border-color: var(--blue); }
+  .btn-add { background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 10px 18px; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; font-family: var(--font); }
+  .btn-add:active { opacity: 0.8; }
+
+  /* TRANSACTION LIST */
+  .list-section { padding: 0 16px; }
+  .list-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0 8px; }
+  .list-header-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .tx-list { display: flex; flex-direction: column; gap: 4px; }
+  .tx-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .tx-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .tx-info { flex: 1; min-width: 0; }
+  .tx-cat { font-size: 14px; font-weight: 500; color: var(--text); }
+  .tx-date { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .tx-amount { font-size: 15px; font-weight: 700; flex-shrink: 0; }
+  .tx-del { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1; }
+  .tx-del:active { color: var(--red); }
+  .empty { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 14px; }
+
+  /* BUDGET TAB */
+  .budget-list { display: flex; flex-direction: column; gap: 6px; padding: 0 16px; }
+  .budget-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .budget-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .budget-cat { font-size: 14px; font-weight: 500; }
+  .budget-nums { font-size: 13px; color: var(--muted); }
+  .budget-nums span { font-weight: 600; }
+  .budget-nums .ok { color: var(--green); }
+  .budget-nums .over { color: var(--red); }
+
+  /* REPORT TAB */
+  .report-section { padding: 12px 16px 0; }
+  .report-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; }
+  .report-title { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .report-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .report-row:last-child { border-bottom: none; }
+  .report-row .label { color: var(--muted); }
+  .export-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500; padding: 12px; width: 100%; cursor: pointer; margin-top: 4px; }
+  .export-btn:active { opacity: 0.7; }
+
+  /* BOTTOM NAV */
+  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding: 8px 0 env(safe-area-inset-bottom, 8px); z-index: 100; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; padding: 4px 0; border: none; background: none; color: var(--muted); font-family: var(--font); }
+  .nav-item.active { color: var(--blue); }
+  .nav-icon { font-size: 20px; }
+  .nav-label { font-size: 10px; font-weight: 500; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: flex-end; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 20px 20px 0 0; padding: 20px 20px env(safe-area-inset-bottom, 20px); width: 100%; max-height: 80vh; overflow-y: auto; }
+  .modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 16px; }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 16px; }
+  .modal-row { margin-bottom: 12px; }
+  .modal-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-cancel { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 15px; font-weight: 500; padding: 12px; cursor: pointer; }
+  .btn-save { flex: 2; background: var(--blue); border: none; border-radius: 8px; color: #fff; font-family: var(--font); font-size: 15px; font-weight: 600; padding: 12px; cursor: pointer; }
+
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 5px; margin-left: 6px; }
+  .tag.green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag.red { background: rgba(239,68,68,0.15); color: var(--red); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div class="app-title">💰 Budget Tracker</div>
+    <div class="month-nav">
+      <button class="month-btn" onclick="changeMonth(-1)">‹</button>
+      <div class="month-name" id="monthLabel"></div>
+      <button class="month-btn" onclick="changeMonth(1)">›</button>
+    </div>
+  </div>
+</div>
+
+<div id="summaryArea"></div>
+
+<div id="mainContent"></div>
+
+<nav class="bottom-nav">
+  <button class="nav-item active" onclick="switchPage('expenses')" id="nav-expenses">
+    <span class="nav-icon">💸</span>
+    <span class="nav-label">Išlaidos</span>
+  </button>
+  <button class="nav-item" onclick="switchPage('income')" id="nav-income">
+    <span class="nav-icon">💵</span>
+    <span class="nav-label">Pajamos</span>
+  </button>
+  <button class="nav-item" onclick="switchPage('budget')" id="nav-budget">
+    <span class="nav-icon">🎯</span>
+    <span class="nav-label">Biudžetas</span>
+  </button>
+  <button class="nav-item" onclick="switchPage('report')" id="nav-report">
+    <span class="nav-icon">📊</span>
+    <span class="nav-label">Ataskaita</span>
+  </button>
+</nav>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle">Pridėti išlaidą</div>
+    <div class="modal-row">
+      <div class="modal-label">Kategorija</div>
+      <select id="mCat"></select>
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Suma (€)</div>
+      <input type="number" id="mAmount" placeholder="0.00" step="0.01" min="0" inputmode="decimal">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Aprašymas (nebūtina)</div>
+      <input type="text" id="mDesc" placeholder="pvz. Lidl, Bolt...">
+    </div>
+    <div class="modal-row">
+      <div class="modal-label">Data</div>
+      <input type="date" id="mDate">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Atšaukti</button>
+      <button class="btn-save" onclick="saveEntry()">Išsaugoti</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const EXP_CATS = ['Maistas','Išeiti','Transportas','Sveikata','Sportas','Būstas','Prenumeratos','Kirpykla','Drabužiai','Kita'];
+const INC_CATS = ['Agentūra','Freelance','Verslas','Investicijos','Kita'];
+
+const BUDGET_PLAN = {
+  'Maistas': 350, 'Išeiti': 100, 'Transportas': 30, 'Sveikata': 27,
+  'Sportas': 19, 'Būstas': 220, 'Prenumeratos': 25, 'Kirpykla': 15,
+  'Drabužiai': 0, 'Kita': 0
+};
+const INCOME_PLAN = { 'Agentūra': 1200, 'Freelance': 480, 'Verslas': 0, 'Investicijos': 0, 'Kita': 0 };
+
+const MONTHS_LT = ['Sausis','Vasaris','Kovas','Balandis','Gegužė','Birželis','Liepa','Rugpjūtis','Rugsėjis','Spalis','Lapkritis','Gruodis'];
+const MONTHS_SHORT = ['Sau','Vas','Kov','Bal','Geg','Bir','Lie','Rugp','Rgs','Spa','Lap','Gruo'];
+
+let currentDate = new Date();
+let currentPage = 'expenses';
+let modalType = 'expense';
+
+function storageKey(d) {
+  return `bt_${d.getFullYear()}_${d.getMonth()}`;
+}
+
+function getData() {
+  const raw = localStorage.getItem(storageKey(currentDate));
+  if (!raw) return { expenses: [], income: [] };
+  return JSON.parse(raw);
+}
+
+function saveData(d) {
+  localStorage.setItem(storageKey(currentDate), JSON.stringify(d));
+}
+
+function fmtAmount(n) {
+  return '€' + parseFloat(n).toFixed(2).replace('.', ',');
+}
+
+function fmtDate(str) {
+  if (!str) return '';
+  const [y,m,d] = str.split('-');
+  return `${d}.${m}.${y}`;
+}
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function changeMonth(dir) {
+  currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + dir, 1);
+  render();
+}
+
+function switchPage(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('nav-' + page).classList.add('active');
+  render();
+}
+
+function openModal(type) {
+  modalType = type;
+  const cats = type === 'expense' ? EXP_CATS : INC_CATS;
+  document.getElementById('modalTitle').textContent = type === 'expense' ? 'Pridėti išlaidą' : 'Pridėti pajamas';
+  const sel = document.getElementById('mCat');
+  sel.innerHTML = cats.map(c => `<option>${c}</option>`).join('');
+  document.getElementById('mAmount').value = '';
+  document.getElementById('mDesc').value = '';
+  document.getElementById('mDate').value = todayStr();
+  document.getElementById('addModal').classList.add('open');
+  setTimeout(() => document.getElementById('mAmount').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('addModal').classList.remove('open');
+}
+
+function saveEntry() {
+  const amt = parseFloat(document.getElementById('mAmount').value);
+  if (!amt || amt <= 0) { alert('Įvesk sumą'); return; }
+  const entry = {
+    id: Date.now(),
+    cat: document.getElementById('mCat').value,
+    amount: amt,
+    desc: document.getElementById('mDesc').value.trim(),
+    date: document.getElementById('mDate').value
+  };
+  const data = getData();
+  if (modalType === 'expense') data.expenses.push(entry);
+  else data.income.push(entry);
+  saveData(data);
+  closeModal();
+  render();
+}
+
+function deleteEntry(type, id) {
+  if (!confirm('Trinti?')) return;
+  const data = getData();
+  data[type] = data[type].filter(e => e.id !== id);
+  saveData(data);
+  render();
+}
+
+function getColor(cat) {
+  const colors = {
+    'Maistas':'#f97316','Išeiti':'#a855f7','Transportas':'#3b82f6',
+    'Sveikata':'#22c55e','Sportas':'#eab308','Būstas':'#64748b',
+    'Prenumeratos':'#06b6d4','Kirpykla':'#ec4899','Drabužiai':'#f43f5e','Kita':'#888',
+    'Agentūra':'#22c55e','Freelance':'#3b82f6','Verslas':'#a855f7','Investicijos':'#eab308'
+  };
+  return colors[cat] || '#888';
+}
+
+function renderSummary() {
+  const data = getData();
+  const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
+  const totalInc = data.income.reduce((s,e) => s + e.amount, 0);
+  const savings = totalInc - totalExp;
+  const savPct = totalInc > 0 ? Math.min(100, Math.max(0, (savings/totalInc)*100)) : 0;
+
+  document.getElementById('summaryArea').innerHTML = `
+    <div class="summary">
+      <div class="card">
+        <div class="card-label">Pajamos</div>
+        <div class="card-value green">${fmtAmount(totalInc)}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Išlaidos</div>
+        <div class="card-value red">${fmtAmount(totalExp)}</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Santaupos</div>
+        <div class="card-value ${savings >= 0 ? 'blue' : 'red'}">${savings >= 0 ? '+' : ''}${fmtAmount(savings)}</div>
+      </div>
+    </div>
+    <div class="card-wide">
+      <div style="font-size:13px;color:var(--muted);">Santaupų procentas</div>
+      <div class="progress-wrap">
+        <div class="progress-track">
+          <div class="progress-fill" style="width:${savPct.toFixed(0)}%;background:${savings >= 0 ? 'var(--green)' : 'var(--red)'}"></div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:${savings >= 0 ? 'var(--green)' : 'var(--red)'};">${savPct.toFixed(0)}%</div>
+    </div>
+  `;
+}
+
+function renderExpenses() {
+  const data = getData();
+  const sorted = [...data.expenses].sort((a,b) => b.date.localeCompare(a.date));
+  
+  document.getElementById('mainContent').innerHTML = `
+    <div class="list-section" style="padding-top:4px;">
+      <button class="btn-add" style="width:calc(100% - 0px);margin:12px 0 0;padding:14px;font-size:15px;border-radius:var(--radius);" onclick="openModal('expense')">+ Pridėti išlaidą</button>
+      <div class="list-header">
+        <span class="list-header-label">Visos išlaidos šį mėnesį</span>
+        <span style="font-size:12px;color:var(--muted);">${sorted.length} įrašai</span>
+      </div>
+      <div class="tx-list">
+        ${sorted.length === 0 ? '<div class="empty">Dar nėra išlaidų šį mėnesį.<br>Spausk mygtuką viršuje.</div>' :
+          sorted.map(e => `
+            <div class="tx-item">
+              <div class="tx-dot" style="background:${getColor(e.cat)}"></div>
+              <div class="tx-info">
+                <div class="tx-cat">${e.cat}${e.desc ? ` <span style="font-weight:400;color:var(--muted);">· ${e.desc}</span>` : ''}</div>
+                <div class="tx-date">${fmtDate(e.date)}</div>
+              </div>
+              <div class="tx-amount" style="color:var(--red);">-${fmtAmount(e.amount)}</div>
+              <button class="tx-del" onclick="deleteEntry('expenses',${e.id})">×</button>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderIncome() {
+  const data = getData();
+  const sorted = [...data.income].sort((a,b) => b.date.localeCompare(a.date));
+  
+  document.getElementById('mainContent').innerHTML = `
+    <div class="list-section" style="padding-top:4px;">
+      <button class="btn-add" style="width:100%;margin:12px 0 0;padding:14px;font-size:15px;border-radius:var(--radius);background:var(--green);" onclick="openModal('income')">+ Pridėti pajamas</button>
+      <div class="list-header">
+        <span class="list-header-label">Pajamos šį mėnesį</span>
+      </div>
+      <div class="tx-list">
+        ${sorted.length === 0 ? '<div class="empty">Dar nėra pajamų šį mėnesį.</div>' :
+          sorted.map(e => `
+            <div class="tx-item">
+              <div class="tx-dot" style="background:${getColor(e.cat)}"></div>
+              <div class="tx-info">
+                <div class="tx-cat">${e.cat}${e.desc ? ` <span style="font-weight:400;color:var(--muted);">· ${e.desc}</span>` : ''}</div>
+                <div class="tx-date">${fmtDate(e.date)}</div>
+              </div>
+              <div class="tx-amount" style="color:var(--green);">+${fmtAmount(e.amount)}</div>
+              <button class="tx-del" onclick="deleteEntry('income',${e.id})">×</button>
+            </div>
+          `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderBudget() {
+  const data = getData();
+  const expByCat = {};
+  data.expenses.forEach(e => { expByCat[e.cat] = (expByCat[e.cat] || 0) + e.amount; });
+
+  const items = Object.entries(BUDGET_PLAN).map(([cat, planned]) => {
+    const actual = expByCat[cat] || 0;
+    const diff = planned - actual;
+    const pct = planned > 0 ? Math.min(100, (actual/planned)*100) : (actual > 0 ? 100 : 0);
+    const over = actual > planned && planned > 0;
+    return { cat, planned, actual, diff, pct, over };
+  });
+
+  document.getElementById('mainContent').innerHTML = `
+    <div style="padding: 12px 16px 0;">
+      <div class="budget-list">
+        ${items.map(i => `
+          <div class="budget-item">
+            <div class="budget-top">
+              <div class="budget-cat">${i.cat}</div>
+              <div class="budget-nums">
+                ${i.over
+                  ? `<span class="over">Viršyta €${(i.actual - i.planned).toFixed(0)}</span>`
+                  : `<span class="ok">Liko €${Math.max(0, i.diff).toFixed(0)}</span>`}
+              </div>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:${i.pct.toFixed(0)}%;background:${i.over ? 'var(--red)' : i.pct > 80 ? 'var(--yellow)' : 'var(--green)'}"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--muted);">
+              <span>Išleista: <b style="color:var(--text);">€${i.actual.toFixed(0)}</b></span>
+              <span>Planas: <b style="color:var(--text);">€${i.planned}</b></span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderReport() {
+  const data = getData();
+  const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
+  const totalInc = data.income.reduce((s,e) => s + e.amount, 0);
+  const savings = totalInc - totalExp;
+  const savRate = totalInc > 0 ? ((savings/totalInc)*100).toFixed(0) : '0';
+
+  const expByCat = {};
+  data.expenses.forEach(e => { expByCat[e.cat] = (expByCat[e.cat] || 0) + e.amount; });
+  const incByCat = {};
+  data.income.forEach(e => { incByCat[e.cat] = (incByCat[e.cat] || 0) + e.amount; });
+
+  const topCats = Object.entries(expByCat).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+  const monthName = MONTHS_LT[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+
+  document.getElementById('mainContent').innerHTML = `
+    <div class="report-section">
+      <div class="report-card">
+        <div class="report-title">📋 ${monthName} — suvestinė</div>
+        <div class="report-row"><span class="label">Visos pajamos</span><span style="color:var(--green);font-weight:600;">${fmtAmount(totalInc)}</span></div>
+        <div class="report-row"><span class="label">Visos išlaidos</span><span style="color:var(--red);font-weight:600;">${fmtAmount(totalExp)}</span></div>
+        <div class="report-row"><span class="label">Santaupos</span><span style="color:${savings >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700;">${savings >= 0 ? '+' : ''}${fmtAmount(savings)}</span></div>
+        <div class="report-row"><span class="label">Santaupų rodiklis</span><span style="font-weight:600;">${savRate}%</span></div>
+        <div class="report-row"><span class="label">Įrašų skaičius</span><span>${data.expenses.length + data.income.length}</span></div>
+      </div>
+
+      <div class="report-card">
+        <div class="report-title">💸 Pajamų šaltiniai</div>
+        ${Object.entries(incByCat).length === 0 ? '<div style="color:var(--muted);font-size:14px;">Nėra duomenų</div>' :
+          Object.entries(incByCat).sort((a,b)=>b[1]-a[1]).map(([cat, amt]) => `
+            <div class="report-row">
+              <span class="label">${cat}</span>
+              <span style="font-weight:600;">${fmtAmount(amt)}</span>
+            </div>
+          `).join('')}
+      </div>
+
+      <div class="report-card">
+        <div class="report-title">📉 Top išlaidų kategorijos</div>
+        ${topCats.length === 0 ? '<div style="color:var(--muted);font-size:14px;">Nėra duomenų</div>' :
+          topCats.map(([cat, amt]) => {
+            const pct = totalExp > 0 ? ((amt/totalExp)*100).toFixed(0) : 0;
+            return `
+              <div class="report-row">
+                <span class="label">${cat}</span>
+                <span><span style="color:var(--muted);font-size:12px;margin-right:8px;">${pct}%</span><span style="font-weight:600;color:var(--red);">-${fmtAmount(amt)}</span></span>
+              </div>
+            `;
+          }).join('')}
+      </div>
+
+      <button class="export-btn" onclick="exportCSV()">📥 Eksportuoti kaip CSV</button>
+      <div style="height:8px;"></div>
+    </div>
+  `;
+}
+
+function exportCSV() {
+  const data = getData();
+  const month = MONTHS_LT[currentDate.getMonth()] + '_' + currentDate.getFullYear();
+  let csv = 'Tipas,Data,Kategorija,Aprašymas,Suma\n';
+  data.income.forEach(e => {
+    csv += `Pajamos,${fmtDate(e.date)},${e.cat},"${e.desc || ''}",${e.amount.toFixed(2)}\n`;
+  });
+  data.expenses.forEach(e => {
+    csv += `Išlaidos,${fmtDate(e.date)},${e.cat},"${e.desc || ''}",-${e.amount.toFixed(2)}\n`;
+  });
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `budget_${month}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function render() {
+  document.getElementById('monthLabel').textContent = MONTHS_SHORT[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+  renderSummary();
+  if (currentPage === 'expenses') renderExpenses();
+  else if (currentPage === 'income') renderIncome();
+  else if (currentPage === 'budget') renderBudget();
+  else if (currentPage === 'report') renderReport();
+}
+
+document.getElementById('addModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+render();
+</script>
+</body>
+</html>
