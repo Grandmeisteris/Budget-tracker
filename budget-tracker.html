@@ -97,6 +97,9 @@
   .report-row .label { color: var(--muted); }
   .export-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500; padding: 12px; width: 100%; cursor: pointer; margin-top: 4px; }
   .export-btn:active { opacity: 0.7; }
+  .insight-row { font-size: 14px; line-height: 1.5; padding: 9px 0; border-bottom: 1px solid var(--border); padding-left: 16px; position: relative; }
+  .insight-row:last-child { border-bottom: none; }
+  .insight-row:before { content: "•"; color: var(--blue); position: absolute; left: 0; }
 
   /* BOTTOM NAV */
   .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding: 8px 0 env(safe-area-inset-bottom, 8px); z-index: 100; }
@@ -429,6 +432,94 @@ function renderBudget() {
   `;
 }
 
+function getMonthData(d) {
+  const raw = localStorage.getItem(storageKey(d));
+  return raw ? JSON.parse(raw) : { expenses: [], income: [] };
+}
+
+function generateInsights(data) {
+  if (data.expenses.length === 0 && data.income.length === 0) {
+    return ['Šį mėnesį dar nėra jokių įrašų — pridėk išlaidų ar pajamų, kad matytum analizę ir pastebėjimus.'];
+  }
+
+  const insights = [];
+  const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
+  const totalInc = data.income.reduce((s,e) => s + e.amount, 0);
+  const savings = totalInc - totalExp;
+  const savRate = totalInc > 0 ? (savings/totalInc)*100 : null;
+
+  const expByCat = {};
+  data.expenses.forEach(e => { expByCat[e.cat] = (expByCat[e.cat] || 0) + e.amount; });
+
+  const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+  const prevData = getMonthData(prevDate);
+  const prevExp = prevData.expenses.reduce((s,e) => s + e.amount, 0);
+  const prevExpByCat = {};
+  prevData.expenses.forEach(e => { prevExpByCat[e.cat] = (prevExpByCat[e.cat] || 0) + e.amount; });
+
+  // Trend vs previous month
+  if (prevExp > 0) {
+    const diff = totalExp - prevExp;
+    const pct = (diff / prevExp) * 100;
+    if (Math.abs(pct) >= 5) {
+      insights.push(diff > 0
+        ? `Išlaidos išaugo ${pct.toFixed(0)}% (+${fmtAmount(diff)}) lyginant su praėjusiu mėnesiu.`
+        : `Išlaidos sumažėjo ${Math.abs(pct).toFixed(0)}% (${fmtAmount(Math.abs(diff))}) lyginant su praėjusiu mėnesiu.`);
+    } else {
+      insights.push('Išlaidos šį mėnesį panašios į praėjusio mėnesio lygį — didelių pokyčių nėra.');
+    }
+  }
+
+  // Category with the biggest increase
+  let biggestIncrease = null;
+  Object.keys(expByCat).forEach(cat => {
+    const diff = expByCat[cat] - (prevExpByCat[cat] || 0);
+    if (diff >= 10 && (!biggestIncrease || diff > biggestIncrease.diff)) biggestIncrease = { cat, diff };
+  });
+  if (biggestIncrease) {
+    insights.push(`Labiausiai paaugusi kategorija — „${biggestIncrease.cat}“ (+${fmtAmount(biggestIncrease.diff)} nuo praėjusio mėnesio).`);
+  }
+
+  // Budget overruns
+  const overBudget = Object.entries(BUDGET_PLAN)
+    .filter(([cat, planned]) => planned > 0 && (expByCat[cat] || 0) > planned)
+    .map(([cat, planned]) => ({ cat, over: (expByCat[cat] || 0) - planned }))
+    .sort((a,b) => b.over - a.over);
+  if (overBudget.length > 0) {
+    insights.push(`Biudžetas viršytas ${overBudget.length} kategorijoje(-ose), labiausiai — „${overBudget[0].cat}“ (+${fmtAmount(overBudget[0].over)}).`);
+  } else if (data.expenses.length > 0) {
+    insights.push('Visos kategorijos šį mėnesį neviršijo suplanuoto biudžeto. 👍');
+  }
+
+  // Dominant category share
+  const topCat = Object.entries(expByCat).sort((a,b) => b[1]-a[1])[0];
+  if (topCat && totalExp > 0) {
+    const share = (topCat[1] / totalExp) * 100;
+    if (share >= 35) insights.push(`„${topCat[0]}“ sudaro net ${share.toFixed(0)}% visų išlaidų — didžiausia išlaidų dalis šį mėnesį.`);
+  }
+
+  // Biggest single transaction
+  if (data.expenses.length > 0) {
+    const biggest = [...data.expenses].sort((a,b) => b.amount - a.amount)[0];
+    insights.push(`Didžiausia pavienė išlaida: ${biggest.cat}${biggest.desc ? ' („' + biggest.desc + '“)' : ''} — ${fmtAmount(biggest.amount)}.`);
+  }
+
+  // Frequency / average size
+  if (data.expenses.length > 0) {
+    const avg = totalExp / data.expenses.length;
+    insights.push(`Vidutinė vienos išlaidos suma — ${fmtAmount(avg)} (iš viso ${data.expenses.length} įrašų šį mėnesį).`);
+  }
+
+  // Savings rate assessment
+  if (savRate !== null) {
+    if (savRate < 0) insights.push('Šį mėnesį išleista daugiau nei uždirbta — santaupos neigiamos, verta peržiūrėti biudžetą.');
+    else if (savRate < 10) insights.push(`Santaupų rodiklis žemas (${savRate.toFixed(0)}%) — apsvarstyk, kur galima sutaupyti.`);
+    else if (savRate >= 30) insights.push(`Puikus santaupų rodiklis — sutaupei ${savRate.toFixed(0)}% pajamų!`);
+  }
+
+  return insights;
+}
+
 function renderReport() {
   const data = getData();
   const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
@@ -442,6 +533,7 @@ function renderReport() {
   data.income.forEach(e => { incByCat[e.cat] = (incByCat[e.cat] || 0) + e.amount; });
 
   const topCats = Object.entries(expByCat).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  const insights = generateInsights(data);
 
   const monthName = MONTHS_LT[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
 
@@ -454,6 +546,11 @@ function renderReport() {
         <div class="report-row"><span class="label">Santaupos</span><span style="color:${savings >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700;">${savings >= 0 ? '+' : ''}${fmtAmount(savings)}</span></div>
         <div class="report-row"><span class="label">Santaupų rodiklis</span><span style="font-weight:600;">${savRate}%</span></div>
         <div class="report-row"><span class="label">Įrašų skaičius</span><span>${data.expenses.length + data.income.length}</span></div>
+      </div>
+
+      <div class="report-card">
+        <div class="report-title">🔍 Mėnesio analizė ir pastebėjimai</div>
+        ${insights.map(i => `<div class="insight-row">${i}</div>`).join('')}
       </div>
 
       <div class="report-card">
