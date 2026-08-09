@@ -22,7 +22,7 @@
     --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; padding-bottom: 80px; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
 
   /* HEADER */
   .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100; }
@@ -34,9 +34,9 @@
 
   /* SUMMARY CARDS */
   .summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 16px 16px 0; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
-  .card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  .card-value { font-size: 18px; font-weight: 700; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 10px; min-width: 0; }
+  .card-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-value { font-size: clamp(14px, 4.4vw, 18px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.3px; }
   .card-value.green { color: var(--green); }
   .card-value.red { color: var(--red); }
   .card-value.blue { color: var(--blue); }
@@ -69,6 +69,9 @@
   .list-header-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .tx-list { display: flex; flex-direction: column; gap: 4px; }
   .tx-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .tx-item.tappable { cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+  .tx-item.tappable:active { background: var(--surface2); border-color: var(--blue); }
+  .tx-chevron { color: var(--border); font-size: 16px; flex-shrink: 0; line-height: 1; }
   .tx-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .tx-info { flex: 1; min-width: 0; }
   .tx-cat { font-size: 14px; font-weight: 500; color: var(--text); }
@@ -97,16 +100,55 @@
   .report-row .label { color: var(--muted); }
   .export-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--font); font-size: 14px; font-weight: 500; padding: 12px; width: 100%; cursor: pointer; margin-top: 4px; }
   .export-btn:active { opacity: 0.7; }
-  .insight-row { font-size: 14px; line-height: 1.5; padding: 9px 0; border-bottom: 1px solid var(--border); padding-left: 16px; position: relative; }
+  .insight-row { font-size: 14px; line-height: 1.5; padding: 9px 0 9px 26px; border-bottom: 1px solid var(--border); position: relative; }
   .insight-row:last-child { border-bottom: none; }
-  .insight-row:before { content: "•"; color: var(--blue); position: absolute; left: 0; }
+  .insight-row .ico { position: absolute; left: 0; top: 9px; font-size: 14px; line-height: 1.5; }
+  .insight-group { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin: 14px 0 2px; }
+  .insight-group:first-child { margin-top: 0; }
+
+  /* SCORE CARD */
+  .score-top { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+  .score-ring { position: relative; width: 84px; height: 84px; flex-shrink: 0; }
+  .score-ring svg { transform: rotate(-90deg); display: block; }
+  .score-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .score-num b { font-size: 22px; font-weight: 700; line-height: 1; }
+  .score-num span { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .score-verdict { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .score-desc { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .score-bars { display: flex; flex-direction: column; gap: 9px; }
+  .score-bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+  .score-bar-label .n { color: var(--muted); }
+  .tip-row { font-size: 14px; line-height: 1.5; padding: 10px 12px; background: var(--surface2); border-radius: 8px; border-left: 3px solid var(--yellow); margin-bottom: 8px; }
+  .tip-row:last-child { margin-bottom: 0; }
+  .tip-row b { color: var(--text); font-weight: 700; }
 
   /* BOTTOM NAV */
-  .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding: 8px 0 env(safe-area-inset-bottom, 8px); z-index: 100; }
-  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: pointer; padding: 4px 0; border: none; background: none; color: var(--muted); font-family: var(--font); }
-  .nav-item.active { color: var(--blue); }
-  .nav-icon { font-size: 20px; }
-  .nav-label { font-size: 10px; font-weight: 500; }
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(26,26,26,0.92); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border-top: 1px solid var(--border);
+    display: flex; align-items: stretch;
+    padding: 6px 2px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .nav-item {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    cursor: pointer; padding: 7px 1px; border: none; background: none;
+    color: var(--muted); font-family: var(--font);
+    border-radius: 10px; transition: color 0.15s, background 0.15s;
+  }
+  .nav-item.active { color: var(--blue); background: rgba(59,130,246,0.10); }
+  .nav-item:active { background: rgba(255,255,255,0.05); }
+  .nav-icon { font-size: 18px; line-height: 1.1; }
+  .nav-label {
+    font-size: 9.5px; font-weight: 600; letter-spacing: -0.2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%; line-height: 1.2;
+  }
+  @media (max-width: 360px) {
+    .nav-label { font-size: 8.5px; letter-spacing: -0.3px; }
+    .nav-icon { font-size: 17px; }
+  }
 
   /* MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: none; align-items: flex-end; }
@@ -190,6 +232,7 @@
       <button class="btn-cancel" onclick="closeModal()">Atšaukti</button>
       <button class="btn-save" onclick="saveEntry()">Išsaugoti</button>
     </div>
+    <button id="mDelete" onclick="deleteFromModal()" style="display:none;width:100%;margin-top:10px;background:none;border:none;color:var(--red);font-family:var(--font);font-size:14px;font-weight:600;padding:10px;cursor:pointer;">Ištrinti įrašą</button>
   </div>
 </div>
 
@@ -214,6 +257,7 @@
       <button class="btn-cancel" onclick="closeFixedModal()">Atšaukti</button>
       <button class="btn-save" onclick="saveFixedEntry()">Išsaugoti</button>
     </div>
+    <button id="fDelete" onclick="deleteFixedFromModal()" style="display:none;width:100%;margin-top:10px;background:none;border:none;color:var(--red);font-family:var(--font);font-size:14px;font-weight:600;padding:10px;cursor:pointer;">Ištrinti fiksuotą išlaidą</button>
   </div>
 </div>
 
@@ -358,39 +402,77 @@ function switchPage(page) {
   render();
 }
 
-function openModal(type) {
+let editingEntryId = null;
+
+function openModal(type, id) {
   modalType = type;
+  editingEntryId = id || null;
   const cats = type === 'expense' ? getCategories() : INC_CATS;
-  document.getElementById('modalTitle').textContent = type === 'expense' ? 'Pridėti išlaidą' : 'Pridėti pajamas';
   const sel = document.getElementById('mCat');
   sel.innerHTML = cats.map(c => `<option>${c}</option>`).join('');
-  document.getElementById('mAmount').value = '';
-  document.getElementById('mDesc').value = '';
-  document.getElementById('mDate').value = todayStr();
+
+  if (editingEntryId) {
+    const list = type === 'expense' ? getData().expenses : getData().income;
+    const entry = list.find(e => e.id === editingEntryId);
+    if (!entry) { editingEntryId = null; return; }
+    document.getElementById('modalTitle').textContent = type === 'expense' ? 'Redaguoti išlaidą' : 'Redaguoti pajamas';
+    if (!cats.includes(entry.cat)) sel.innerHTML += `<option>${entry.cat}</option>`;
+    sel.value = entry.cat;
+    document.getElementById('mAmount').value = entry.amount;
+    document.getElementById('mDesc').value = entry.desc || '';
+    document.getElementById('mDate').value = entry.date;
+    document.getElementById('mDelete').style.display = 'block';
+  } else {
+    document.getElementById('modalTitle').textContent = type === 'expense' ? 'Pridėti išlaidą' : 'Pridėti pajamas';
+    document.getElementById('mAmount').value = '';
+    document.getElementById('mDesc').value = '';
+    document.getElementById('mDate').value = todayStr();
+    document.getElementById('mDelete').style.display = 'none';
+  }
+
   document.getElementById('addModal').classList.add('open');
   setTimeout(() => document.getElementById('mAmount').focus(), 100);
 }
 
 function closeModal() {
   document.getElementById('addModal').classList.remove('open');
+  editingEntryId = null;
 }
 
 function saveEntry() {
   const amt = parseFloat(document.getElementById('mAmount').value);
   if (!amt || amt <= 0) { alert('Įvesk sumą'); return; }
-  const entry = {
-    id: Date.now(),
-    cat: document.getElementById('mCat').value,
-    amount: amt,
-    desc: document.getElementById('mDesc').value.trim(),
-    date: document.getElementById('mDate').value
-  };
   const data = getData();
-  if (modalType === 'expense') data.expenses.push(entry);
-  else data.income.push(entry);
+  const listKey = modalType === 'expense' ? 'expenses' : 'income';
+
+  if (editingEntryId) {
+    const entry = data[listKey].find(e => e.id === editingEntryId);
+    if (entry) {
+      entry.cat = document.getElementById('mCat').value;
+      entry.amount = amt;
+      entry.desc = document.getElementById('mDesc').value.trim();
+      entry.date = document.getElementById('mDate').value;
+    }
+  } else {
+    data[listKey].push({
+      id: Date.now(),
+      cat: document.getElementById('mCat').value,
+      amount: amt,
+      desc: document.getElementById('mDesc').value.trim(),
+      date: document.getElementById('mDate').value
+    });
+  }
   saveData(data);
   closeModal();
   render();
+}
+
+function deleteFromModal() {
+  if (!editingEntryId) return;
+  const type = modalType === 'expense' ? 'expenses' : 'income';
+  const id = editingEntryId;
+  closeModal();
+  deleteEntry(type, id);
 }
 
 function deleteEntry(type, id) {
@@ -410,13 +492,16 @@ function openFixedModal(id) {
   if (editingFixedId) {
     const item = getFixedExpenses().find(f => f.id === editingFixedId);
     document.getElementById('fixedModalTitle').textContent = 'Redaguoti fiksuotą išlaidą';
+    if (!getCategories().includes(item.cat)) sel.innerHTML += `<option>${item.cat}</option>`;
     sel.value = item.cat;
     document.getElementById('fAmount').value = item.amount;
     document.getElementById('fDesc').value = item.desc || '';
+    document.getElementById('fDelete').style.display = 'block';
   } else {
     document.getElementById('fixedModalTitle').textContent = 'Nauja fiksuota išlaida';
     document.getElementById('fAmount').value = '';
     document.getElementById('fDesc').value = '';
+    document.getElementById('fDelete').style.display = 'none';
   }
   document.getElementById('fixedModal').classList.add('open');
   setTimeout(() => document.getElementById('fAmount').focus(), 100);
@@ -424,6 +509,14 @@ function openFixedModal(id) {
 
 function closeFixedModal() {
   document.getElementById('fixedModal').classList.remove('open');
+  editingFixedId = null;
+}
+
+function deleteFixedFromModal() {
+  if (!editingFixedId) return;
+  const id = editingFixedId;
+  closeFixedModal();
+  deleteFixed(id);
 }
 
 function saveFixedEntry() {
@@ -562,16 +655,14 @@ function renderExpenses() {
       <div class="tx-list">
         ${sorted.length === 0 ? '<div class="empty">Dar nėra išlaidų šį mėnesį.<br>Spausk mygtuką viršuje.</div>' :
           sorted.map(e => `
-            <div class="tx-item">
+            <div class="tx-item tappable" onclick="${e.fixed ? `openFixedModal(${e.id})` : `openModal('expense',${e.id})`}">
               <div class="tx-dot" style="background:${getColor(e.cat)}"></div>
               <div class="tx-info">
-                <div class="tx-cat">${e.cat}${e.desc ? ` <span style="font-weight:400;color:var(--muted);">· ${e.desc}</span>` : ''}${e.fixed ? ' <span class="tag" style="background:rgba(59,130,246,0.15);color:var(--blue);">🔁 Fiksuota</span>' : ''}</div>
+                <div class="tx-cat">${e.cat}${e.desc ? ` <span style="font-weight:400;color:var(--muted);">· ${e.desc}</span>` : ''}${e.fixed ? ' <span class="tag" style="background:rgba(59,130,246,0.15);color:var(--blue);">🔁</span>' : ''}</div>
                 <div class="tx-date">${e.fixed ? 'Kas mėnesį' : fmtDate(e.date)}</div>
               </div>
               <div class="tx-amount" style="color:var(--red);">-${fmtAmount(e.amount)}</div>
-              ${e.fixed
-                ? `<button class="tx-del" onclick="switchPage('fixed')" title="Tvarkyti Fiksuotos skiltyje">🔁</button>`
-                : `<button class="tx-del" onclick="deleteEntry('expenses',${e.id})">×</button>`}
+              <span class="tx-chevron">›</span>
             </div>
           `).join('')}
       </div>
@@ -592,14 +683,14 @@ function renderIncome() {
       <div class="tx-list">
         ${sorted.length === 0 ? '<div class="empty">Dar nėra pajamų šį mėnesį.</div>' :
           sorted.map(e => `
-            <div class="tx-item">
+            <div class="tx-item tappable" onclick="openModal('income',${e.id})">
               <div class="tx-dot" style="background:${getColor(e.cat)}"></div>
               <div class="tx-info">
                 <div class="tx-cat">${e.cat}${e.desc ? ` <span style="font-weight:400;color:var(--muted);">· ${e.desc}</span>` : ''}</div>
                 <div class="tx-date">${fmtDate(e.date)}</div>
               </div>
               <div class="tx-amount" style="color:var(--green);">+${fmtAmount(e.amount)}</div>
-              <button class="tx-del" onclick="deleteEntry('income',${e.id})">×</button>
+              <span class="tx-chevron">›</span>
             </div>
           `).join('')}
       </div>
@@ -621,15 +712,14 @@ function renderFixed() {
       <div class="tx-list">
         ${fixed.length === 0 ? '<div class="empty">Dar nėra fiksuotų išlaidų.<br>Pridėk pvz. nuomą ar prenumeratas — jos bus automatiškai įskaičiuotos į kiekvieno mėnesio išlaidas.</div>' :
           fixed.map(f => `
-            <div class="tx-item">
+            <div class="tx-item tappable" onclick="openFixedModal(${f.id})">
               <div class="tx-dot" style="background:${getColor(f.cat)}"></div>
               <div class="tx-info">
                 <div class="tx-cat">${f.cat}${f.desc ? ` <span style="font-weight:400;color:var(--muted);">· ${f.desc}</span>` : ''}</div>
                 <div class="tx-date">Kas mėnesį</div>
               </div>
               <div class="tx-amount" style="color:var(--red);">-${fmtAmount(f.amount)}</div>
-              <button class="tx-del" style="font-size:14px;" onclick="openFixedModal(${f.id})">✎</button>
-              <button class="tx-del" onclick="deleteFixed(${f.id})">×</button>
+              <span class="tx-chevron">›</span>
             </div>
           `).join('')}
       </div>
@@ -687,94 +777,378 @@ function getMonthData(d) {
   return raw ? JSON.parse(raw) : { expenses: [], income: [] };
 }
 
-function generateInsights(data) {
-  if (data.expenses.length === 0 && data.income.length === 0) {
-    return ['Šį mėnesį dar nėra jokių įrašų — pridėk išlaidų ar pajamų, kad matytum analizę ir pastebėjimus.'];
+/* ---------- analysis helpers ---------- */
+
+function sumOf(list) { return list.reduce((s,e) => s + e.amount, 0); }
+
+function groupByCat(list) {
+  const o = {};
+  list.forEach(e => { o[e.cat] = (o[e.cat] || 0) + e.amount; });
+  return o;
+}
+
+function hasRealActivity(d) {
+  const raw = getMonthData(d);
+  return raw.expenses.length > 0 || raw.income.length > 0;
+}
+
+// Previous months (relative to currentDate) that actually have entries, newest first.
+function historyMonths(n) {
+  const out = [];
+  for (let i = 1; i <= n; i++) {
+    const d = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+    if (hasRealActivity(d)) out.push({ date: d, data: getEffectiveMonthData(d) });
+  }
+  return out;
+}
+
+function isCurrentRealMonth() {
+  const now = new Date();
+  return now.getFullYear() === currentDate.getFullYear() && now.getMonth() === currentDate.getMonth();
+}
+
+// How many days of the viewed month have elapsed (full month if it's in the past).
+function elapsedDaysInMonth() {
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  if (isCurrentRealMonth()) return Math.min(new Date().getDate(), daysInMonth);
+  return daysInMonth;
+}
+
+function annual(n) { return fmtAmount(n * 12); }
+
+/* ---------- financial health score ---------- */
+
+function computeScore(data) {
+  // Without real entries for this month the metrics are vacuously perfect
+  // (spending nothing "meets" every budget), so there is no score to show.
+  if (!hasRealActivity(currentDate)) {
+    return { pct: null, parts: [], verdict: null, desc: '', color: '' };
   }
 
-  const insights = [];
-  const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
-  const totalInc = data.income.reduce((s,e) => s + e.amount, 0);
-  const savings = totalInc - totalExp;
-  const savRate = totalInc > 0 ? (savings/totalInc)*100 : null;
+  const totalExp = sumOf(data.expenses);
+  const totalInc = sumOf(data.income);
+  const parts = [];
+  let score = 0, max = 0;
 
-  const expByCat = {};
-  data.expenses.forEach(e => { expByCat[e.cat] = (expByCat[e.cat] || 0) + e.amount; });
+  // Savings rate — the single biggest driver of long-term outcomes.
+  if (totalInc > 0) {
+    const sr = ((totalInc - totalExp) / totalInc) * 100;
+    let p;
+    if (sr >= 30) p = 40;
+    else if (sr <= 0) p = 0;
+    else p = Math.round((sr / 30) * 40);
+    score += p; max += 40;
+    parts.push({ label: 'Santaupų norma', got: p, of: 40, note: `${sr.toFixed(0)}%` });
+  }
 
-  const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
-  const prevData = getEffectiveMonthData(prevDate);
-  const prevExp = prevData.expenses.reduce((s,e) => s + e.amount, 0);
-  const prevExpByCat = {};
-  prevData.expenses.forEach(e => { prevExpByCat[e.cat] = (prevExpByCat[e.cat] || 0) + e.amount; });
+  // Budget adherence.
+  const plan = getBudgetPlan();
+  const planned = Object.entries(plan).filter(([, v]) => v > 0);
+  if (planned.length > 0) {
+    const ec = groupByCat(data.expenses);
+    const within = planned.filter(([c, v]) => (ec[c] || 0) <= v).length;
+    const p = Math.round((within / planned.length) * 25);
+    score += p; max += 25;
+    parts.push({ label: 'Biudžeto laikymasis', got: p, of: 25, note: `${within}/${planned.length} kat.` });
+  }
 
-  // Trend vs previous month
-  if (prevExp > 0) {
-    const diff = totalExp - prevExp;
-    const pct = (diff / prevExp) * 100;
-    if (Math.abs(pct) >= 5) {
-      insights.push(diff > 0
-        ? `Išlaidos išaugo ${pct.toFixed(0)}% (+${fmtAmount(diff)}) lyginant su praėjusiu mėnesiu.`
-        : `Išlaidos sumažėjo ${Math.abs(pct).toFixed(0)}% (${fmtAmount(Math.abs(diff))}) lyginant su praėjusiu mėnesiu.`);
-    } else {
-      insights.push('Išlaidos šį mėnesį panašios į praėjusio mėnesio lygį — didelių pokyčių nėra.');
+  // Fixed-cost burden — high fixed costs reduce flexibility.
+  const fixedSum = sumOf(data.expenses.filter(e => e.fixed));
+  if (totalInc > 0 && fixedSum > 0) {
+    const ratio = (fixedSum / totalInc) * 100;
+    let p;
+    if (ratio <= 35) p = 20;
+    else if (ratio >= 70) p = 0;
+    else p = Math.round((1 - (ratio - 35) / 35) * 20);
+    score += p; max += 20;
+    parts.push({ label: 'Fiksuotų išlaidų našta', got: p, of: 20, note: `${ratio.toFixed(0)}% pajamų` });
+  }
+
+  // Stability vs recent history — predictable spending is easier to plan around.
+  const hist = historyMonths(3);
+  if (hist.length > 0) {
+    const avg = hist.reduce((s,h) => s + sumOf(h.data.expenses), 0) / hist.length;
+    if (avg > 0) {
+      const devPct = Math.abs(totalExp - avg) / avg * 100;
+      let p;
+      if (devPct <= 10) p = 15;
+      else if (devPct >= 50) p = 0;
+      else p = Math.round((1 - (devPct - 10) / 40) * 15);
+      score += p; max += 15;
+      const sign = totalExp >= avg ? '+' : '';
+      parts.push({ label: 'Išlaidų stabilumas', got: p, of: 15, note: `${sign}${((totalExp - avg) / avg * 100).toFixed(0)}% nuo vidurkio` });
     }
   }
 
-  // Category with the biggest increase
-  let biggestIncrease = null;
-  Object.keys(expByCat).forEach(cat => {
-    const diff = expByCat[cat] - (prevExpByCat[cat] || 0);
-    if (diff >= 10 && (!biggestIncrease || diff > biggestIncrease.diff)) biggestIncrease = { cat, diff };
-  });
-  if (biggestIncrease) {
-    insights.push(`Labiausiai paaugusi kategorija — „${biggestIncrease.cat}“ (+${fmtAmount(biggestIncrease.diff)} nuo praėjusio mėnesio).`);
+  const pct = max > 0 ? Math.round((score / max) * 100) : null;
+  let verdict = null, desc = '', color = 'var(--muted)';
+  if (pct !== null) {
+    if (pct >= 80) { verdict = 'Puikiai valdai pinigus'; desc = 'Taupai reikšmingą dalį pajamų ir laikaisi plano. Toliau tuo pačiu keliu — apsvarstyk investavimą.'; color = 'var(--green)'; }
+    else if (pct >= 65) { verdict = 'Gerai'; desc = 'Finansai kontroliuojami, bet yra ką patobulinti — žiūrėk patarimus žemiau.'; color = 'var(--green)'; }
+    else if (pct >= 45) { verdict = 'Vidutiniškai'; desc = 'Pagrindai yra, tačiau taupymas ar biudžeto laikymasis šlubuoja. Pradėk nuo vienos kategorijos.'; color = 'var(--yellow)'; }
+    else { verdict = 'Reikia dėmesio'; desc = 'Išlaidos suvalgo per didelę pajamų dalį. Susifokusuok į didžiausią kategoriją ir fiksuotas išlaidas.'; color = 'var(--red)'; }
+  }
+  return { pct, parts, verdict, desc, color };
+}
+
+/* ---------- insights ---------- */
+
+function generateInsights(data) {
+  const empty = { comparison: [], patterns: [], tips: [] };
+  if (data.expenses.length === 0 && data.income.length === 0) {
+    empty.comparison.push({ ico: 'ℹ️', text: 'Šį mėnesį dar nėra jokių įrašų — pridėk išlaidų ar pajamų, kad matytum analizę ir pastebėjimus.' });
+    return empty;
   }
 
-  // Budget overruns
-  const overBudget = Object.entries(getBudgetPlan())
-    .filter(([cat, planned]) => planned > 0 && (expByCat[cat] || 0) > planned)
-    .map(([cat, planned]) => ({ cat, over: (expByCat[cat] || 0) - planned }))
-    .sort((a,b) => b.over - a.over);
-  if (overBudget.length > 0) {
-    insights.push(`Biudžetas viršytas ${overBudget.length} kategorijoje(-ose), labiausiai — „${overBudget[0].cat}“ (+${fmtAmount(overBudget[0].over)}).`);
-  } else if (data.expenses.length > 0) {
-    insights.push('Visos kategorijos šį mėnesį neviršijo suplanuoto biudžeto. 👍');
+  const comparison = [], patterns = [], tips = [];
+  const totalExp = sumOf(data.expenses);
+  const totalInc = sumOf(data.income);
+  const savRate = totalInc > 0 ? ((totalInc - totalExp) / totalInc) * 100 : null;
+  const expByCat = groupByCat(data.expenses);
+  const variable = data.expenses.filter(e => !e.fixed);
+  const fixedSum = sumOf(data.expenses.filter(e => e.fixed));
+
+  const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+  const prevHas = hasRealActivity(prevDate);
+  const prevData = getEffectiveMonthData(prevDate);
+  const prevExp = sumOf(prevData.expenses);
+  const prevExpByCat = groupByCat(prevData.expenses);
+  const hist = historyMonths(3);
+
+  /* --- A. Comparison vs history --- */
+
+  if (prevHas && prevExp > 0) {
+    const diff = totalExp - prevExp;
+    const pct = (diff / prevExp) * 100;
+    if (Math.abs(pct) >= 5) {
+      comparison.push({
+        ico: diff > 0 ? '📈' : '📉',
+        text: diff > 0
+          ? `Išlaidos išaugo <b>${pct.toFixed(0)}%</b> (+${fmtAmount(diff)}) lyginant su ${MONTHS_LT[prevDate.getMonth()].toLowerCase()} mėn.`
+          : `Išlaidos sumažėjo <b>${Math.abs(pct).toFixed(0)}%</b> (${fmtAmount(Math.abs(diff))}) lyginant su ${MONTHS_LT[prevDate.getMonth()].toLowerCase()} mėn. Puiku!`
+      });
+    } else {
+      comparison.push({ ico: '➡️', text: 'Išlaidos beveik nepakito nuo praėjusio mėnesio — laikaisi stabilaus lygio.' });
+    }
   }
 
-  // Dominant category share
+  // Against a multi-month average, which is more reliable than a single month.
+  if (hist.length >= 2) {
+    const avg = hist.reduce((s,h) => s + sumOf(h.data.expenses), 0) / hist.length;
+    if (avg > 0) {
+      const d = totalExp - avg;
+      const p = (d / avg) * 100;
+      comparison.push({
+        ico: '📊',
+        text: `Palyginti su paskutinių ${hist.length} mėn. vidurkiu (${fmtAmount(avg)}) šį mėnesį išleidai <b>${p >= 0 ? '+' : ''}${p.toFixed(0)}%</b> (${d >= 0 ? '+' : ''}${fmtAmount(d)}).`
+      });
+    }
+  }
+
+  // Biggest mover, up or down.
+  const allCats = new Set([...Object.keys(expByCat), ...Object.keys(prevExpByCat)]);
+  let up = null, down = null;
+  if (prevHas) {
+    allCats.forEach(cat => {
+      const d = (expByCat[cat] || 0) - (prevExpByCat[cat] || 0);
+      if (d >= 10 && (!up || d > up.d)) up = { cat, d };
+      if (d <= -10 && (!down || d < down.d)) down = { cat, d };
+    });
+    if (up) {
+      const base = prevExpByCat[up.cat] || 0;
+      const pctTxt = base > 0 ? ` (+${((up.d / base) * 100).toFixed(0)}%)` : '';
+      comparison.push({ ico: '🔺', text: `Labiausiai augo „<b>${up.cat}</b>“ — +${fmtAmount(up.d)}${pctTxt} nuo praėjusio mėnesio.` });
+    }
+    if (down) {
+      comparison.push({ ico: '🔻', text: `Labiausiai sumažėjo „<b>${down.cat}</b>“ — ${fmtAmount(Math.abs(down.d))} mažiau nei praėjusį mėnesį.` });
+    }
+  }
+
+  // A category rising three months straight is a habit forming, not noise.
+  if (hist.length >= 2) {
+    Object.keys(expByCat).forEach(cat => {
+      const series = [expByCat[cat] || 0, ...hist.map(h => groupByCat(h.data.expenses)[cat] || 0)];
+      if (series.length >= 3 && series[0] > series[1] && series[1] > series[2] && series[0] - series[2] >= 15) {
+        patterns.push({ ico: '⚠️', text: `„<b>${cat}</b>“ auga jau trečią mėnesį iš eilės (${fmtAmount(series[2])} → ${fmtAmount(series[1])} → ${fmtAmount(series[0])}) — panašu į besiformuojantį įprotį.` });
+      }
+    });
+  }
+
+  // Income direction matters as much as spending.
+  if (prevHas) {
+    const prevInc = sumOf(prevData.income);
+    if (prevInc > 0 && totalInc > 0) {
+      const p = ((totalInc - prevInc) / prevInc) * 100;
+      if (Math.abs(p) >= 10) {
+        comparison.push({
+          ico: p > 0 ? '💰' : '💸',
+          text: `Pajamos ${p > 0 ? 'išaugo' : 'sumažėjo'} <b>${Math.abs(p).toFixed(0)}%</b> (${p > 0 ? '+' : ''}${fmtAmount(totalInc - prevInc)}) nuo praėjusio mėnesio.`
+        });
+      }
+    }
+  }
+
+  /* --- B. Behaviour patterns (variable spending only) --- */
+
+  const elapsed = elapsedDaysInMonth();
+
+  // Pace projection — only meaningful while the month is still running, and only
+  // once enough days have passed that a single big purchase doesn't skew it wildly.
+  if (isCurrentRealMonth() && elapsed >= 8 && totalExp > 0) {
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const daysLeft = daysInMonth - elapsed;
+    const variableSoFar = sumOf(variable);
+    const perDay = variableSoFar / elapsed;
+    const projected = fixedSum + perDay * daysInMonth;
+    patterns.push({
+      ico: '⏳',
+      text: `Praėjo ${elapsed} iš ${daysInMonth} d. Kintamos išlaidos — ${fmtAmount(perDay)}/dieną. Jei tempas nesikeis, mėnuo baigsis ties <b>${fmtAmount(projected)}</b>.`
+    });
+    // Turn the comparison into an actionable daily allowance rather than a scary total.
+    if (prevHas && prevExp > 0 && projected > prevExp * 1.1) {
+      if (totalExp < prevExp && daysLeft > 0) {
+        const perDayLeft = (prevExp - totalExp) / daysLeft;
+        patterns.push({ ico: '🚨', text: `Tokiu tempu viršysi praėjusį mėnesį (${fmtAmount(prevExp)}). Kad neviršytum, likusioms ${daysLeft} d. gali leisti apie <b>${fmtAmount(perDayLeft)}/dieną</b>.` });
+      } else if (totalExp >= prevExp) {
+        patterns.push({ ico: '🚨', text: `Jau viršijai praėjusio mėnesio išlaidas (${fmtAmount(prevExp)}) — o mėnuo dar nesibaigė. Likusias ${daysLeft} d. verta stabdyti kintamas išlaidas.` });
+      }
+    }
+  }
+
+  if (variable.length >= 4) {
+    // Weekend vs weekday intensity, normalised per calendar day.
+    let wkSum = 0, wdSum = 0;
+    variable.forEach(e => {
+      const day = new Date(e.date + 'T00:00:00').getDay();
+      if (day === 0 || day === 6) wkSum += e.amount; else wdSum += e.amount;
+    });
+    let wkDays = 0, wdDays = 0;
+    for (let i = 1; i <= elapsed; i++) {
+      const day = new Date(currentDate.getFullYear(), currentDate.getMonth(), i).getDay();
+      if (day === 0 || day === 6) wkDays++; else wdDays++;
+    }
+    if (wkDays > 0 && wdDays > 0 && (wkSum > 0 || wdSum > 0)) {
+      const aWk = wkSum / wkDays, aWd = wdSum / wdDays;
+      if (aWk > aWd * 1.3) {
+        patterns.push({ ico: '🎉', text: `Savaitgaliais išleidi vidutiniškai <b>${fmtAmount(aWk)}</b>/d., darbo dienomis — ${fmtAmount(aWd)}/d. (${((aWk/aWd - 1) * 100).toFixed(0)}% daugiau).` });
+      } else if (aWd > aWk * 1.3) {
+        patterns.push({ ico: '🗓️', text: `Daugiausia išleidi darbo dienomis (${fmtAmount(aWd)}/d. vs ${fmtAmount(aWk)}/d. savaitgaliais) — dažnai tai kasdienis maistas ar transportas.` });
+      }
+    }
+
+    // The "small purchases" effect — individually trivial, collectively not.
+    const catTx = {};
+    variable.forEach(e => {
+      if (!catTx[e.cat]) catTx[e.cat] = [];
+      catTx[e.cat].push(e.amount);
+    });
+    let smallest = null;
+    Object.entries(catTx).forEach(([cat, arr]) => {
+      const sum = arr.reduce((s,v) => s + v, 0);
+      const avg = sum / arr.length;
+      if (arr.length >= 5 && avg <= 15 && (!smallest || sum > smallest.sum)) smallest = { cat, n: arr.length, avg, sum };
+    });
+    if (smallest) {
+      patterns.push({
+        ico: '☕',
+        text: `Smulkių pirkimų efektas: „<b>${smallest.cat}</b>“ — ${smallest.n} kartai po ~${fmtAmount(smallest.avg)}, iš viso ${fmtAmount(smallest.sum)}. Per metus tokiu tempu ≈ <b>${annual(smallest.sum)}</b>.`
+      });
+    }
+
+    // No-spend days signal deliberate control.
+    const spendDays = new Set(variable.map(e => e.date));
+    const noSpend = elapsed - spendDays.size;
+    if (noSpend > 0) {
+      patterns.push({ ico: '🟢', text: `Dienų be jokių kintamų išlaidų: <b>${noSpend}</b> iš ${elapsed}. Kuo jų daugiau, tuo lengviau valdyti biudžetą.` });
+    }
+
+    // Front-loading vs back-loading within the month.
+    const firstHalf = sumOf(variable.filter(e => parseInt(e.date.split('-')[2], 10) <= 15));
+    const secondHalf = sumOf(variable) - firstHalf;
+    if (elapsed > 20 && firstHalf > 0 && secondHalf > 0) {
+      if (firstHalf > secondHalf * 1.5) {
+        patterns.push({ ico: '📆', text: `Didžioji dalis išlaidų (${fmtAmount(firstHalf)}) tenka mėnesio pradžiai — po atlyginimo išleidžiama greitai. Pabandyk iškart atidėti taupymo dalį.` });
+      } else if (secondHalf > firstHalf * 1.5) {
+        patterns.push({ ico: '📆', text: `Išlaidos koncentruojasi mėnesio antroje pusėje (${fmtAmount(secondHalf)}) — verta stebėti, kad pabaigoje netrūktų lėšų.` });
+      }
+    }
+  }
+
+  // Concentration of spend in one category.
   const topCat = Object.entries(expByCat).sort((a,b) => b[1]-a[1])[0];
   if (topCat && totalExp > 0) {
     const share = (topCat[1] / totalExp) * 100;
-    if (share >= 35) insights.push(`„${topCat[0]}“ sudaro net ${share.toFixed(0)}% visų išlaidų — didžiausia išlaidų dalis šį mėnesį.`);
+    if (share >= 35) {
+      patterns.push({ ico: '🥇', text: `„<b>${topCat[0]}</b>“ sudaro ${share.toFixed(0)}% visų išlaidų (${fmtAmount(topCat[1])}) — didžiausia koncentracija šį mėnesį.` });
+    }
   }
 
-  // Biggest single transaction
-  if (data.expenses.length > 0) {
-    const biggest = [...data.expenses].sort((a,b) => b.amount - a.amount)[0];
-    insights.push(`Didžiausia pavienė išlaida: ${biggest.cat}${biggest.desc ? ' („' + biggest.desc + '“)' : ''} — ${fmtAmount(biggest.amount)}.`);
-  }
-
-  // Frequency / average size
-  if (data.expenses.length > 0) {
-    const avg = totalExp / data.expenses.length;
-    insights.push(`Vidutinė vienos išlaidos suma — ${fmtAmount(avg)} (iš viso ${data.expenses.length} įrašų šį mėnesį).`);
-  }
-
-  // Fixed vs variable breakdown
-  const fixedSum = data.expenses.filter(e => e.fixed).reduce((s,e) => s + e.amount, 0);
   if (fixedSum > 0 && totalExp > 0) {
-    const fixedShare = (fixedSum / totalExp) * 100;
-    insights.push(`Fiksuotos išlaidos (nuoma, prenumeratos ir pan.) sudaro ${fmtAmount(fixedSum)} (${fixedShare.toFixed(0)}%) šio mėnesio išlaidų, likusi dalis — kintamos.`);
+    const fShare = (fixedSum / totalExp) * 100;
+    patterns.push({ ico: '🔁', text: `Fiksuotos išlaidos — ${fmtAmount(fixedSum)} (${fShare.toFixed(0)}% išlaidų), kintamos — ${fmtAmount(totalExp - fixedSum)}. Kintamas dalis yra ta, kurią realiai gali valdyti kasdien.` });
   }
 
-  // Savings rate assessment
+  if (variable.length > 0) {
+    const biggest = [...variable].sort((a,b) => b.amount - a.amount)[0];
+    patterns.push({ ico: '🔍', text: `Didžiausia pavienė išlaida: ${biggest.cat}${biggest.desc ? ' („' + biggest.desc + '“)' : ''} — <b>${fmtAmount(biggest.amount)}</b> (${fmtDate(biggest.date)}).` });
+  }
+
+  /* --- C. Actionable tips --- */
+
+  const plan = getBudgetPlan();
+  const overBudget = Object.entries(plan)
+    .filter(([cat, p]) => p > 0 && (expByCat[cat] || 0) > p)
+    .map(([cat, p]) => ({ cat, over: (expByCat[cat] || 0) - p, planned: p }))
+    .sort((a,b) => b.over - a.over);
+
+  if (overBudget.length > 0) {
+    const o = overBudget[0];
+    const n = overBudget.length;
+    const catWord = n === 1 ? 'kategorijoje' : (n % 10 === 0 || (n % 100 >= 11 && n % 100 <= 19) ? 'kategorijų' : 'kategorijose');
+    tips.push(`Biudžetas viršytas <b>${n}</b> ${catWord}. Didžiausias viršijimas — „<b>${o.cat}</b>“: ${fmtAmount(expByCat[o.cat])} vietoj ${fmtAmount(o.planned)}. Grįžus prie plano sutaupytum <b>${annual(o.over)}</b> per metus.`);
+  } else if (Object.values(plan).some(v => v > 0)) {
+    tips.push('Visos kategorijos telpa į suplanuotą biudžetą 👍 Jei taip laikosi kelis mėnesius — apsvarstyk planų sumažinimą ir skirtumo taupymą.');
+  }
+
+  // Concrete, quantified cut on the biggest controllable category.
+  const topVariable = Object.entries(groupByCat(variable)).sort((a,b) => b[1]-a[1])[0];
+  if (topVariable && topVariable[1] >= 30) {
+    const cut = topVariable[1] * 0.15;
+    tips.push(`Didžiausia valdoma kategorija — „<b>${topVariable[0]}</b>“ (${fmtAmount(topVariable[1])}). Sumažinus ją tik <b>15%</b>, sutaupytum ${fmtAmount(cut)}/mėn. arba <b>${annual(cut)}</b> per metus.`);
+  }
+
+  if (totalInc > 0 && fixedSum > 0) {
+    const fRatio = (fixedSum / totalInc) * 100;
+    if (fRatio > 50) {
+      tips.push(`Fiksuotos išlaidos suryja <b>${fRatio.toFixed(0)}%</b> pajamų — tai mažina lankstumą. Peržiūrėk prenumeratas ir sutartis: net ${fmtAmount(20)}/mėn. sumažinimas duoda ${annual(20)} per metus.`);
+    } else if (fRatio <= 35) {
+      tips.push(`Fiksuotos išlaidos sudaro tik ${fRatio.toFixed(0)}% pajamų — sveika proporcija, palieka erdvės taupymui ir netikėtoms išlaidoms.`);
+    }
+  }
+
   if (savRate !== null) {
-    if (savRate < 0) insights.push('Šį mėnesį išleista daugiau nei uždirbta — santaupos neigiamos, verta peržiūrėti biudžetą.');
-    else if (savRate < 10) insights.push(`Santaupų rodiklis žemas (${savRate.toFixed(0)}%) — apsvarstyk, kur galima sutaupyti.`);
-    else if (savRate >= 30) insights.push(`Puikus santaupų rodiklis — sutaupei ${savRate.toFixed(0)}% pajamų!`);
+    if (savRate < 0) {
+      tips.push(`Šį mėnesį išleista daugiau nei uždirbta (${fmtAmount(Math.abs(totalInc - totalExp))} minuso). Pirmas žingsnis — padengti skirtumą iš atsargų ir sumažinti didžiausią kintamą kategoriją.`);
+    } else if (savRate < 10) {
+      const target = totalInc * 0.2 - (totalInc - totalExp);
+      tips.push(`Santaupų norma ${savRate.toFixed(0)}% — žemiau rekomenduojamų 20%. Kad pasiektum 20%, reikėtų sutaupyti dar <b>${fmtAmount(target)}</b> per mėnesį.`);
+    } else if (savRate < 20) {
+      const target = totalInc * 0.2 - (totalInc - totalExp);
+      tips.push(`Santaupų norma ${savRate.toFixed(0)}% — jau neblogai. Iki „auksinės“ 20% ribos trūksta ${fmtAmount(target)} per mėnesį.`);
+    } else {
+      tips.push(`Santaupų norma <b>${savRate.toFixed(0)}%</b> — virš rekomenduojamų 20%. Jei taip laikosi nuolat, kitas žingsnis: atsargų fondas 3–6 mėn. išlaidoms (${fmtAmount(totalExp * 3)}–${fmtAmount(totalExp * 6)}), o po to investavimas.`);
+    }
   }
 
-  return insights;
+  if (totalExp > 0 && fixedSum > 0) {
+    tips.push(`Orientyras: atsargų fondas 3 mėn. tavo išlaidų ≈ <b>${fmtAmount(totalExp * 3)}</b>. Būtent tiek padeda išgyventi pajamų netekimą nesiskolinant.`);
+  }
+
+  if (!prevHas && hist.length === 0) {
+    comparison.push({ ico: 'ℹ️', text: 'Praėjusio mėnesio duomenų nėra, todėl palyginimų kol kas nedaug — kitą mėnesį analizė bus išsamesnė.' });
+  }
+
+  return { comparison, patterns, tips };
 }
 
 function renderReport() {
@@ -791,8 +1165,42 @@ function renderReport() {
 
   const topCats = Object.entries(expByCat).sort((a,b) => b[1]-a[1]).slice(0, 5);
   const insights = generateInsights(data);
+  const score = computeScore(data);
 
   const monthName = MONTHS_LT[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+
+  const renderRows = arr => arr.map(i => `<div class="insight-row"><span class="ico">${i.ico}</span>${i.text}</div>`).join('');
+
+  const CIRC = 226.19; // 2πr for r=36
+  const scoreCard = score.pct === null ? '' : `
+      <div class="report-card">
+        <div class="report-title">🧭 Finansinės sveikatos indeksas</div>
+        <div class="score-top">
+          <div class="score-ring">
+            <svg width="84" height="84" viewBox="0 0 84 84">
+              <circle cx="42" cy="42" r="36" fill="none" stroke="var(--border)" stroke-width="8"></circle>
+              <circle cx="42" cy="42" r="36" fill="none" stroke="${score.color}" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="${CIRC}" stroke-dashoffset="${(CIRC * (1 - score.pct / 100)).toFixed(1)}"></circle>
+            </svg>
+            <div class="score-num"><b style="color:${score.color};">${score.pct}</b><span>iš 100</span></div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="score-verdict" style="color:${score.color};">${score.verdict}</div>
+            <div class="score-desc">${score.desc}</div>
+          </div>
+        </div>
+        <div class="score-bars">
+          ${score.parts.map(p => `
+            <div>
+              <div class="score-bar-label"><span>${p.label}</span><span class="n">${p.note} · ${p.got}/${p.of}</span></div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width:${((p.got / p.of) * 100).toFixed(0)}%;background:${p.got / p.of >= 0.7 ? 'var(--green)' : p.got / p.of >= 0.4 ? 'var(--yellow)' : 'var(--red)'}"></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45;">${isCurrentRealMonth() ? '<b style="color:var(--yellow);">Mėnuo dar nesibaigė</b> — rodiklis preliminarus ir keisis. ' : ''}Tai orientacinis šios programėlės rodiklis, skaičiuojamas iš santaupų normos, biudžeto laikymosi, fiksuotų išlaidų dalies ir išlaidų stabilumo. Ne oficialus finansinio raštingumo testas.</div>
+      </div>`;
 
   document.getElementById('mainContent').innerHTML = `
     <div class="report-section">
@@ -805,10 +1213,19 @@ function renderReport() {
         <div class="report-row"><span class="label">Įrašų skaičius</span><span>${data.expenses.length + data.income.length}</span></div>
       </div>
 
+      ${scoreCard}
+
       <div class="report-card">
         <div class="report-title">🔍 Mėnesio analizė ir pastebėjimai</div>
-        ${insights.map(i => `<div class="insight-row">${i}</div>`).join('')}
+        ${insights.comparison.length ? `<div class="insight-group">Palyginimas su ankstesniais mėnesiais</div>${renderRows(insights.comparison)}` : ''}
+        ${insights.patterns.length ? `<div class="insight-group">Išlaidų įpročiai ir elgsena</div>${renderRows(insights.patterns)}` : ''}
       </div>
+
+      ${insights.tips.length ? `
+      <div class="report-card">
+        <div class="report-title">💡 Ką galima pagerinti</div>
+        ${insights.tips.map(t => `<div class="tip-row">${t}</div>`).join('')}
+      </div>` : ''}
 
       <div class="report-card">
         <div class="report-title">💸 Pajamų šaltiniai</div>
