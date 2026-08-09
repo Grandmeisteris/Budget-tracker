@@ -267,9 +267,13 @@
     <div class="modal-handle"></div>
     <div class="modal-title">Keisti planą — <span id="bmCatName"></span></div>
     <div class="modal-row">
-      <div class="modal-label">Planuojama suma per mėnesį (€)</div>
+      <div class="modal-label" id="bmAmountLabel">Planuojama suma per mėnesį (€)</div>
       <input type="number" id="bmAmount" placeholder="0" step="1" min="0" inputmode="decimal">
     </div>
+    <label class="modal-row" style="display:flex;gap:10px;align-items:flex-start;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;">
+      <input type="checkbox" id="bmInvest" style="width:20px;height:20px;flex-shrink:0;margin-top:1px;accent-color:var(--green);">
+      <span style="font-size:13px;line-height:1.4;">📈 <b>Turto kaupimas</b>, ne vartojimo išlaida<br><span style="color:var(--muted);font-size:12px;">Investicijos, santaupos, pensijos kaupimas. Nebus skaičiuojama kaip išlaidos ir nebus siūloma mažinti.</span></span>
+    </label>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeBudgetModal()">Atšaukti</button>
       <button class="btn-save" onclick="saveBudgetEdit()">Išsaugoti</button>
@@ -290,6 +294,10 @@
       <div class="modal-label">Planuojamas biudžetas (€, nebūtina)</div>
       <input type="number" id="ncBudget" placeholder="0" step="1" min="0" inputmode="decimal">
     </div>
+    <label class="modal-row" style="display:flex;gap:10px;align-items:flex-start;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;">
+      <input type="checkbox" id="ncInvest" style="width:20px;height:20px;flex-shrink:0;margin-top:1px;accent-color:var(--green);">
+      <span style="font-size:13px;line-height:1.4;">📈 <b>Turto kaupimas</b>, ne vartojimo išlaida<br><span style="color:var(--muted);font-size:12px;">Pvz. investicijos, santaupos, III pakopa.</span></span>
+    </label>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeCategoryModal()">Atšaukti</button>
       <button class="btn-save" onclick="saveNewCategory()">Pridėti</button>
@@ -327,6 +335,84 @@ function getData() {
 
 function saveData(d) {
   localStorage.setItem(storageKey(currentDate), JSON.stringify(d));
+}
+
+/* Categories that move money into assets rather than consume it. Outflows here
+   are wealth transfers, not spending — they must never be "optimised away". */
+const DEFAULT_INVEST_CATS = ['Investicijos','Santaupos','Taupymas','Pensija','III pakopa','Indeksiniai','ETF','Akcijos'];
+
+function getInvestCats() {
+  const raw = localStorage.getItem('bt_invest_cats');
+  if (raw) return JSON.parse(raw);
+  return getCategories().filter(c => DEFAULT_INVEST_CATS.includes(c));
+}
+
+function saveInvestCats(list) {
+  localStorage.setItem('bt_invest_cats', JSON.stringify(list));
+}
+
+function isInvestCat(cat) {
+  return getInvestCats().includes(cat);
+}
+
+function toggleInvestCat(cat) {
+  const list = getInvestCats();
+  const i = list.indexOf(cat);
+  if (i >= 0) list.splice(i, 1); else list.push(cat);
+  saveInvestCats(list);
+  render();
+}
+
+/* Splits a month's outflows into consumption vs. wealth-building. */
+function splitFlows(data) {
+  const invested = data.expenses.filter(e => isInvestCat(e.cat));
+  const consumption = data.expenses.filter(e => !isInvestCat(e.cat));
+  return {
+    invested, consumption,
+    investedSum: sumOf(invested),
+    consumptionSum: sumOf(consumption),
+    income: sumOf(data.income)
+  };
+}
+
+/* Future value of a recurring monthly contribution. Nominal, before tax. */
+function futureValue(monthly, years, rate) {
+  const r = rate === undefined ? 0.07 : rate;
+  const annual = monthly * 12;
+  return annual * (Math.pow(1 + r, years) - 1) / r;
+}
+
+/* Years to financial independence at 25x annual consumption (4% rule),
+   funded by the current monthly surplus, assuming 5% real return. */
+function yearsToFI(monthlySurplus, monthlyConsumption) {
+  if (monthlySurplus <= 0 || monthlyConsumption <= 0) return null;
+  const r = 0.05;
+  const target = monthlyConsumption * 12 * 25;
+  const annualSave = monthlySurplus * 12;
+  const n = Math.log(1 + (target * r) / annualSave) / Math.log(1 + r);
+  return (!isFinite(n) || n <= 0) ? null : n;
+}
+
+/* Everything ever tracked — lets us estimate accumulated reserves without
+   asking the user to enter their net worth. */
+function getLifetimeStats() {
+  let cashSaved = 0, invested = 0, months = 0, consumption = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!/^bt_\d+_\d+$/.test(k)) continue;
+    let m;
+    try { m = JSON.parse(localStorage.getItem(k)); } catch (err) { continue; }
+    if (!m || !m.expenses) continue;
+    const parts = k.split('_');
+    const d = new Date(parseInt(parts[1], 10), parseInt(parts[2], 10), 1);
+    const eff = { expenses: [...fixedAsExpensesFor(d), ...m.expenses], income: m.income || [] };
+    const f = splitFlows(eff);
+    cashSaved += f.income - f.consumptionSum - f.investedSum;
+    invested += f.investedSum;
+    consumption += f.consumptionSum;
+    months++;
+  }
+  return { cashSaved, invested, months, avgConsumption: months ? consumption / months : 0 };
 }
 
 function getCategories() {
@@ -552,8 +638,13 @@ let editingCat = null;
 function openBudgetModal(cat) {
   editingCat = cat;
   const plan = getBudgetPlan();
+  const invest = isInvestCat(cat);
   document.getElementById('bmCatName').textContent = cat;
   document.getElementById('bmAmount').value = plan[cat] || 0;
+  document.getElementById('bmInvest').checked = invest;
+  document.getElementById('bmAmountLabel').textContent = invest
+    ? 'Mėnesio kaupimo tikslas (\u20ac)'
+    : 'Planuojama suma per m\u0117nes\u012f (\u20ac)';
   document.getElementById('budgetModal').classList.add('open');
   setTimeout(() => document.getElementById('bmAmount').focus(), 100);
 }
@@ -567,6 +658,14 @@ function saveBudgetEdit() {
   const plan = getBudgetPlan();
   plan[editingCat] = (!isNaN(amt) && amt >= 0) ? amt : 0;
   saveBudgetPlan(plan);
+
+  const wantInvest = document.getElementById('bmInvest').checked;
+  const list = getInvestCats();
+  const i = list.indexOf(editingCat);
+  if (wantInvest && i < 0) list.push(editingCat);
+  if (!wantInvest && i >= 0) list.splice(i, 1);
+  saveInvestCats(list);
+
   closeBudgetModal();
   render();
 }
@@ -574,6 +673,7 @@ function saveBudgetEdit() {
 function openCategoryModal() {
   document.getElementById('ncName').value = '';
   document.getElementById('ncBudget').value = '';
+  document.getElementById('ncInvest').checked = false;
   document.getElementById('categoryModal').classList.add('open');
   setTimeout(() => document.getElementById('ncName').focus(), 100);
 }
@@ -593,6 +693,10 @@ function saveNewCategory() {
   const budget = parseFloat(document.getElementById('ncBudget').value);
   plan[name] = (!isNaN(budget) && budget >= 0) ? budget : 0;
   saveBudgetPlan(plan);
+  if (document.getElementById('ncInvest').checked) {
+    const inv = getInvestCats();
+    if (!inv.includes(name)) { inv.push(name); saveInvestCats(inv); }
+  }
   closeCategoryModal();
   render();
 }
@@ -608,35 +712,34 @@ function getColor(cat) {
 }
 
 function renderSummary() {
-  const data = getEffectiveData();
-  const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
-  const totalInc = data.income.reduce((s,e) => s + e.amount, 0);
-  const savings = totalInc - totalExp;
-  const savPct = totalInc > 0 ? Math.min(100, Math.max(0, (savings/totalInc)*100)) : 0;
+  const f = splitFlows(getEffectiveData());
+  const surplus = f.income - f.consumptionSum;   // investing does not reduce this
+  const investRate = f.income > 0 ? (f.investedSum / f.income) * 100 : 0;
+  const barPct = Math.min(100, (investRate / 20) * 100); // 20% of income = full bar
 
   document.getElementById('summaryArea').innerHTML = `
     <div class="summary">
       <div class="card">
         <div class="card-label">Pajamos</div>
-        <div class="card-value green">${fmtAmount(totalInc)}</div>
+        <div class="card-value green">${fmtAmount(f.income)}</div>
       </div>
       <div class="card">
-        <div class="card-label">Išlaidos</div>
-        <div class="card-value red">${fmtAmount(totalExp)}</div>
+        <div class="card-label">Vartojimas</div>
+        <div class="card-value red">${fmtAmount(f.consumptionSum)}</div>
       </div>
       <div class="card">
-        <div class="card-label">Santaupos</div>
-        <div class="card-value ${savings >= 0 ? 'blue' : 'red'}">${savings >= 0 ? '+' : ''}${fmtAmount(savings)}</div>
+        <div class="card-label">Perteklius</div>
+        <div class="card-value ${surplus >= 0 ? 'blue' : 'red'}">${surplus >= 0 ? '+' : ''}${fmtAmount(surplus)}</div>
       </div>
     </div>
     <div class="card-wide">
-      <div style="font-size:13px;color:var(--muted);">Santaupų procentas</div>
+      <div style="font-size:13px;color:var(--muted);white-space:nowrap;">Investuota <b style="color:var(--text);">${fmtAmount(f.investedSum)}</b></div>
       <div class="progress-wrap">
         <div class="progress-track">
-          <div class="progress-fill" style="width:${savPct.toFixed(0)}%;background:${savings >= 0 ? 'var(--green)' : 'var(--red)'}"></div>
+          <div class="progress-fill" style="width:${barPct.toFixed(0)}%;background:var(--green)"></div>
         </div>
       </div>
-      <div style="font-size:13px;font-weight:700;color:${savings >= 0 ? 'var(--green)' : 'var(--red)'};">${savPct.toFixed(0)}%</div>
+      <div style="font-size:13px;font-weight:700;color:${investRate >= 15 ? 'var(--green)' : investRate > 0 ? 'var(--yellow)' : 'var(--muted)'};white-space:nowrap;">${investRate.toFixed(0)}%</div>
     </div>
   `;
 }
@@ -733,40 +836,54 @@ function renderBudget() {
   data.expenses.forEach(e => { expByCat[e.cat] = (expByCat[e.cat] || 0) + e.amount; });
   const plan = getBudgetPlan();
 
-  const items = Object.entries(plan).map(([cat, planned]) => {
+  // Union of planned categories and known categories, so nothing is invisible
+  // just because it has no budget set yet.
+  const allCats = [...new Set([...Object.keys(plan), ...getCategories(), ...getInvestCats()])];
+  const items = allCats.map(cat => {
+    const planned = plan[cat] || 0;
     const actual = expByCat[cat] || 0;
     const diff = planned - actual;
     const pct = planned > 0 ? Math.min(100, (actual/planned)*100) : (actual > 0 ? 100 : 0);
     const over = actual > planned && planned > 0;
-    return { cat, planned, actual, diff, pct, over };
+    return { cat, planned, actual, diff, pct, over, invest: isInvestCat(cat) };
   });
+  const consItems = items.filter(i => !i.invest);
+  const investItems = items.filter(i => i.invest);
+
+  const budgetRow = i => `
+    <div class="budget-item">
+      <div class="budget-top">
+        <div class="budget-cat">${i.cat}${i.invest ? ' <span class="tag" style="background:rgba(34,197,94,0.15);color:var(--green);">📈 Turtas</span>' : ''}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="budget-nums">
+            ${i.invest
+              ? `<span class="ok">${i.planned > 0 && i.actual >= i.planned ? 'Tikslas pasiektas' : 'Tikslas €' + i.planned}</span>`
+              : i.over
+                ? `<span class="over">Viršyta €${(i.actual - i.planned).toFixed(0)}</span>`
+                : `<span class="ok">Liko €${Math.max(0, i.diff).toFixed(0)}</span>`}
+          </div>
+          <button onclick="openBudgetModal('${escQ(i.cat)}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;">✎</button>
+        </div>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${i.pct.toFixed(0)}%;background:${i.invest ? 'var(--green)' : i.over ? 'var(--red)' : i.pct > 80 ? 'var(--yellow)' : 'var(--green)'}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--muted);">
+        <span>${i.invest ? 'Investuota' : 'Išleista'}: <b style="color:var(--text);">€${i.actual.toFixed(0)}</b></span>
+        <span>${i.invest ? 'Tikslas' : 'Planas'}: <b style="color:var(--text);">€${i.planned}</b></span>
+      </div>
+    </div>`;
 
   document.getElementById('mainContent').innerHTML = `
     <div style="padding: 12px 16px 0;">
       <button class="btn-add" style="width:100%;margin:0 0 12px;padding:14px;font-size:15px;border-radius:var(--radius);background:var(--surface2);color:var(--text);border:1px solid var(--border);" onclick="openCategoryModal()">+ Nauja kategorija</button>
-      <div class="budget-list">
-        ${items.map(i => `
-          <div class="budget-item">
-            <div class="budget-top">
-              <div class="budget-cat">${i.cat}</div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div class="budget-nums">
-                  ${i.over
-                    ? `<span class="over">Viršyta €${(i.actual - i.planned).toFixed(0)}</span>`
-                    : `<span class="ok">Liko €${Math.max(0, i.diff).toFixed(0)}</span>`}
-                </div>
-                <button onclick="openBudgetModal('${escQ(i.cat)}')" style="background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:2px 4px;">✎</button>
-              </div>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill" style="width:${i.pct.toFixed(0)}%;background:${i.over ? 'var(--red)' : i.pct > 80 ? 'var(--yellow)' : 'var(--green)'}"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:12px;color:var(--muted);">
-              <span>Išleista: <b style="color:var(--text);">€${i.actual.toFixed(0)}</b></span>
-              <span>Planas: <b style="color:var(--text);">€${i.planned}</b></span>
-            </div>
-          </div>
-        `).join('')}
+      ${investItems.length ? `
+        <div class="list-header" style="padding-top:0;"><span class="list-header-label">📈 Turto kaupimas — neskaičiuojama kaip išlaidos</span></div>
+        <div class="budget-list" style="padding:0;">${investItems.map(budgetRow).join('')}</div>
+      ` : ''}
+      ${investItems.length ? '<div class="list-header"><span class="list-header-label">Vartojimo išlaidos</span></div>' : ''}
+      <div class="budget-list" style="padding:0;">
+        ${consItems.map(budgetRow).join('')}
       </div>
     </div>
   `;
@@ -825,35 +942,46 @@ function computeScore(data) {
     return { pct: null, parts: [], verdict: null, desc: '', color: '' };
   }
 
-  const totalExp = sumOf(data.expenses);
-  const totalInc = sumOf(data.income);
+  const f = splitFlows(data);
+  const totalInc = f.income;
   const parts = [];
   let score = 0, max = 0;
 
-  // Savings rate — the single biggest driver of long-term outcomes.
+  // Surplus rate — income not consumed. Money moved into investments counts as
+  // KEPT, not spent; treating it as an expense is the classic literacy error.
   if (totalInc > 0) {
-    const sr = ((totalInc - totalExp) / totalInc) * 100;
+    const sr = ((totalInc - f.consumptionSum) / totalInc) * 100;
     let p;
-    if (sr >= 30) p = 40;
+    if (sr >= 30) p = 30;
     else if (sr <= 0) p = 0;
-    else p = Math.round((sr / 30) * 40);
-    score += p; max += 40;
-    parts.push({ label: 'Santaupų norma', got: p, of: 40, note: `${sr.toFixed(0)}%` });
+    else p = Math.round((sr / 30) * 30);
+    score += p; max += 30;
+    parts.push({ label: 'Perteklius (pajamos − vartojimas)', got: p, of: 30, note: `${sr.toFixed(0)}%` });
   }
 
-  // Budget adherence.
+  // Investment rate — surplus only builds wealth once it is actually deployed.
+  if (totalInc > 0) {
+    const ir = (f.investedSum / totalInc) * 100;
+    let p;
+    if (ir >= 20) p = 30;
+    else p = Math.round((ir / 20) * 30);
+    score += p; max += 30;
+    parts.push({ label: 'Investavimo norma', got: p, of: 30, note: `${ir.toFixed(0)}% pajamų` });
+  }
+
+  // Consumption budget adherence (investment categories excluded on purpose).
   const plan = getBudgetPlan();
-  const planned = Object.entries(plan).filter(([, v]) => v > 0);
+  const planned = Object.entries(plan).filter(([c, v]) => v > 0 && !isInvestCat(c));
   if (planned.length > 0) {
-    const ec = groupByCat(data.expenses);
+    const ec = groupByCat(f.consumption);
     const within = planned.filter(([c, v]) => (ec[c] || 0) <= v).length;
-    const p = Math.round((within / planned.length) * 25);
-    score += p; max += 25;
-    parts.push({ label: 'Biudžeto laikymasis', got: p, of: 25, note: `${within}/${planned.length} kat.` });
+    const p = Math.round((within / planned.length) * 20);
+    score += p; max += 20;
+    parts.push({ label: 'Biudžeto laikymasis', got: p, of: 20, note: `${within}/${planned.length} kat.` });
   }
 
-  // Fixed-cost burden — high fixed costs reduce flexibility.
-  const fixedSum = sumOf(data.expenses.filter(e => e.fixed));
+  // Fixed-cost burden — high fixed costs reduce flexibility to invest.
+  const fixedSum = sumOf(f.consumption.filter(e => e.fixed));
   if (totalInc > 0 && fixedSum > 0) {
     const ratio = (fixedSum / totalInc) * 100;
     let p;
@@ -864,29 +992,14 @@ function computeScore(data) {
     parts.push({ label: 'Fiksuotų išlaidų našta', got: p, of: 20, note: `${ratio.toFixed(0)}% pajamų` });
   }
 
-  // Stability vs recent history — predictable spending is easier to plan around.
-  const hist = historyMonths(3);
-  if (hist.length > 0) {
-    const avg = hist.reduce((s,h) => s + sumOf(h.data.expenses), 0) / hist.length;
-    if (avg > 0) {
-      const devPct = Math.abs(totalExp - avg) / avg * 100;
-      let p;
-      if (devPct <= 10) p = 15;
-      else if (devPct >= 50) p = 0;
-      else p = Math.round((1 - (devPct - 10) / 40) * 15);
-      score += p; max += 15;
-      const sign = totalExp >= avg ? '+' : '';
-      parts.push({ label: 'Išlaidų stabilumas', got: p, of: 15, note: `${sign}${((totalExp - avg) / avg * 100).toFixed(0)}% nuo vidurkio` });
-    }
-  }
-
   const pct = max > 0 ? Math.round((score / max) * 100) : null;
+  const investRate = totalInc > 0 ? (f.investedSum / totalInc) * 100 : 0;
   let verdict = null, desc = '', color = 'var(--muted)';
   if (pct !== null) {
-    if (pct >= 80) { verdict = 'Puikiai valdai pinigus'; desc = 'Taupai reikšmingą dalį pajamų ir laikaisi plano. Toliau tuo pačiu keliu — apsvarstyk investavimą.'; color = 'var(--green)'; }
-    else if (pct >= 65) { verdict = 'Gerai'; desc = 'Finansai kontroliuojami, bet yra ką patobulinti — žiūrėk patarimus žemiau.'; color = 'var(--green)'; }
-    else if (pct >= 45) { verdict = 'Vidutiniškai'; desc = 'Pagrindai yra, tačiau taupymas ar biudžeto laikymasis šlubuoja. Pradėk nuo vienos kategorijos.'; color = 'var(--yellow)'; }
-    else { verdict = 'Reikia dėmesio'; desc = 'Išlaidos suvalgo per didelę pajamų dalį. Susifokusuok į didžiausią kategoriją ir fiksuotas išlaidas.'; color = 'var(--red)'; }
+    if (pct >= 80) { verdict = 'Kapitalo augintojas'; desc = 'Vartoji mažiau nei uždirbi ir perteklių realiai investuoji. Tai būtent tas elgesys, kuris ilgainiui sukuria pasyvias pajamas.'; color = 'var(--green)'; }
+    else if (pct >= 60) { verdict = 'Geras kelias'; desc = investRate < 10 ? 'Perteklių susikuri, bet per didelė jo dalis lieka grynaisiais — neinvestuoti pinigai kasmet pinga dėl infliacijos.' : 'Sistema veikia. Toliau — didinti investavimo normą ir mažinti fiksuotas išlaidas.'; color = 'var(--green)'; }
+    else if (pct >= 40) { verdict = 'Vidutiniškai'; desc = 'Pagrindai yra, bet turtas auga lėtai. Didžiausią efektą duos ne smulkūs apribojimai, o fiksuotų išlaidų peržiūra ir automatinis investavimas.'; color = 'var(--yellow)'; }
+    else { verdict = 'Turtas neauga'; desc = 'Beveik visos pajamos suvartojamos. Pirmas tikslas — bent 10% pajamų nukreipti į investicijas automatiškai, dar prieš išlaidas.'; color = 'var(--red)'; }
   }
   return { pct, parts, verdict, desc, color };
 }
@@ -901,18 +1014,22 @@ function generateInsights(data) {
   }
 
   const comparison = [], patterns = [], tips = [];
-  const totalExp = sumOf(data.expenses);
   const totalInc = sumOf(data.income);
+  // Behavioural analysis is about CONSUMPTION. Money moved into investments is
+  // excluded everywhere below, otherwise investing looks like overspending.
+  const cons = data.expenses.filter(e => !isInvestCat(e.cat));
+  const totalExp = sumOf(cons);
   const savRate = totalInc > 0 ? ((totalInc - totalExp) / totalInc) * 100 : null;
-  const expByCat = groupByCat(data.expenses);
-  const variable = data.expenses.filter(e => !e.fixed);
-  const fixedSum = sumOf(data.expenses.filter(e => e.fixed));
+  const expByCat = groupByCat(cons);
+  const variable = cons.filter(e => !e.fixed);
+  const fixedSum = sumOf(cons.filter(e => e.fixed));
 
   const prevDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
   const prevHas = hasRealActivity(prevDate);
   const prevData = getEffectiveMonthData(prevDate);
-  const prevExp = sumOf(prevData.expenses);
-  const prevExpByCat = groupByCat(prevData.expenses);
+  const prevCons = prevData.expenses.filter(e => !isInvestCat(e.cat));
+  const prevExp = sumOf(prevCons);
+  const prevExpByCat = groupByCat(prevCons);
   const hist = historyMonths(3);
 
   /* --- A. Comparison vs history --- */
@@ -934,7 +1051,7 @@ function generateInsights(data) {
 
   // Against a multi-month average, which is more reliable than a single month.
   if (hist.length >= 2) {
-    const avg = hist.reduce((s,h) => s + sumOf(h.data.expenses), 0) / hist.length;
+    const avg = hist.reduce((s,h) => s + sumOf(h.data.expenses.filter(e => !isInvestCat(e.cat))), 0) / hist.length;
     if (avg > 0) {
       const d = totalExp - avg;
       const p = (d / avg) * 100;
@@ -967,7 +1084,7 @@ function generateInsights(data) {
   // A category rising three months straight is a habit forming, not noise.
   if (hist.length >= 2) {
     Object.keys(expByCat).forEach(cat => {
-      const series = [expByCat[cat] || 0, ...hist.map(h => groupByCat(h.data.expenses)[cat] || 0)];
+      const series = [expByCat[cat] || 0, ...hist.map(h => groupByCat(h.data.expenses.filter(e => !isInvestCat(e.cat)))[cat] || 0)];
       if (series.length >= 3 && series[0] > series[1] && series[1] > series[2] && series[0] - series[2] >= 15) {
         patterns.push({ ico: '⚠️', text: `„<b>${cat}</b>“ auga jau trečią mėnesį iš eilės (${fmtAmount(series[2])} → ${fmtAmount(series[1])} → ${fmtAmount(series[0])}) — panašu į besiformuojantį įprotį.` });
       }
@@ -1096,52 +1213,122 @@ function generateInsights(data) {
   /* --- C. Actionable tips --- */
 
   const plan = getBudgetPlan();
+  const flows = splitFlows(data);
+  const consumption = flows.consumptionSum;
+  const investedNow = flows.investedSum;
+  const surplus = totalInc - consumption;          // income kept, whether deployed or not
+  const idleCash = surplus - investedNow;          // kept but not put to work
+  const investRate = totalInc > 0 ? (investedNow / totalInc) * 100 : 0;
+  const life = getLifetimeStats();
+  const monthlyConsumption = life.months >= 2 ? life.avgConsumption : consumption;
+  const emergencyTarget = monthlyConsumption * 3;
+  const emergencyMonths = monthlyConsumption > 0 ? life.cashSaved / monthlyConsumption : 0;
+
+  // --- Step 0: solvency comes before any optimisation ---
+  if (surplus < 0) {
+    tips.push(`<b>Prioritetas #1 — negatyvus srautas.</b> Šį mėnesį suvartojai ${fmtAmount(Math.abs(surplus))} daugiau nei uždirbai. Kol srautas neigiamas, investavimas neaktualus: kiekvienas investuotas euras finansuojamas skola, kurios palūkanos beveik visada didesnės už rinkos grąžą.`);
+  }
+
+  // --- Step 1: emergency fund, sized from real tracked consumption ---
+  if (surplus >= 0 && monthlyConsumption > 0) {
+    if (emergencyMonths < 3) {
+      const missing = Math.max(0, emergencyTarget - life.cashSaved);
+      const perMonth = surplus > 0 ? missing / Math.max(1, surplus) : null;
+      tips.push(`<b>Prioritetas #1 — atsargų fondas.</b> Tavo vidutinis vartojimas ${fmtAmount(monthlyConsumption)}/mėn., tad 3 mėn. pagalvė = ${fmtAmount(emergencyTarget)}. Pagal sekamus duomenis sukaupta ≈ ${fmtAmount(Math.max(0, life.cashSaved))} (${emergencyMonths.toFixed(1)} mėn.). Trūksta <b>${fmtAmount(missing)}</b>${perMonth && perMonth <= 24 ? ` — dabartiniu tempu ~${Math.ceil(perMonth)} mėn.` : ''}. Šią dalį laikyk grynais ar terminuotame indėlyje, <b>ne</b> akcijose — jai svarbus prieinamumas, ne grąža.`);
+    } else if (emergencyMonths > 9 && idleCash > 0) {
+      const excess = life.cashSaved - monthlyConsumption * 6;
+      tips.push(`<b>Per daug pinigų stovi grynais.</b> Sukaupta ≈ ${emergencyMonths.toFixed(1)} mėn. vartojimo (${fmtAmount(life.cashSaved)}), o pakanka 3–6 mėn. Perteklius ${fmtAmount(excess)} prie ~3% infliacijos per metus praranda ≈ <b>${fmtAmount(excess * 0.03)}</b> perkamosios galios. Tai realus nuostolis, tik nematomas sąskaitoje.`);
+    }
+  }
+
+  // --- Step 2: is the surplus actually being deployed? ---
+  if (totalInc > 0 && surplus > 0) {
+    if (investedNow === 0) {
+      const y20 = futureValue(surplus, 20);
+      tips.push(`<b>Perteklius neinvestuojamas.</b> Šį mėnesį liko ${fmtAmount(surplus)}, bet į investicijas nenukeliavo nieko. Jei tokią sumą investuotum kas mėnesį, po 20 m. prie ~7%/m. tai būtų ≈ <b>${fmtAmount(y20)}</b>, iš kurių ${fmtAmount(surplus * 12 * 20)} tavo įnašai, o likusi dalis — sudėtinės palūkanos. Pagrindinis kintamasis čia — laikas, ne suma.`);
+    } else if (idleCash > monthlyConsumption * 0.5 && emergencyMonths >= 3) {
+      const y20 = futureValue(idleCash, 20);
+      tips.push(`Investavai ${fmtAmount(investedNow)}, bet dar ${fmtAmount(idleCash)} liko grynais, nors atsargų fondas jau suformuotas. Jei <b>kas mėnesį</b> nukreiptum ir šią dalį, po 20 m. tai būtų papildomi ≈ <b>${fmtAmount(y20)}</b> (skaičiuojant ~7%/m. grąžą).`);
+    }
+    if (investRate > 0 && investRate < 15) {
+      const toTarget = totalInc * 0.15 - investedNow;
+      if (toTarget > 0) {
+        tips.push(`Investavimo norma <b>${investRate.toFixed(0)}%</b> pajamų. Iki 15% orientyro trūksta ${fmtAmount(toTarget)}/mėn. Praktinis žingsnis: nustatyk automatinį pavedimą atlyginimo dieną — investuojama tai, kas nuskaitoma pirma, o ne tai, kas lieka gale.`);
+      }
+    } else if (investRate >= 15) {
+      tips.push(`Investavimo norma <b>${investRate.toFixed(0)}%</b> pajamų — virš 15% orientyro. Nuo šio taško didesnę įtaką turi ne norma, o mokesčiai ir turto klasė: tikrink fondų TER (siek <0,3%) ir ar išnaudoji III pakopos mokesčių lengvatą.`);
+    }
+  }
+
+  // --- Step 3: time to financial independence, the metric that reframes everything ---
+  // Averaged over everything tracked, so one unusual month doesn't distort the horizon.
+  const avgSurplus = life.months >= 2 ? (life.cashSaved + life.invested) / life.months : surplus;
+  if (avgSurplus > 0 && monthlyConsumption > 0) {
+    const yrs = yearsToFI(avgSurplus, monthlyConsumption);
+    if (yrs && yrs < 80) {
+      const fiTarget = monthlyConsumption * 12 * 25;
+      tips.push(`<b>Kelias iki finansinės nepriklausomybės.</b> Kad pasyvios pajamos padengtų tavo vartojimą (${fmtAmount(monthlyConsumption)}/mėn.), reikia kapitalo ≈ ${fmtAmount(fiTarget)} — 25× metinis vartojimas (4% taisyklė). Išlaikant vidutinį ${fmtAmount(avgSurplus)}/mėn. perteklių${life.months >= 2 ? ` (${life.months} mėn. vidurkis)` : ''} ir 5% realią grąžą — apie <b>${yrs.toFixed(0)} m.</b> Esmė: šį skaičių trumpina ne tik didesnės pajamos, bet ir mažesnis vartojimas — jis vienu metu mažina ir reikalingą kapitalą, ir laiką iki jo.`);
+    }
+  }
+
+  // --- Step 4: where extra investable money realistically comes from ---
+  // Fixed costs first: they repeat every month with zero further effort.
+  const fixedConsumption = flows.consumption.filter(e => e.fixed);
+  const fixedConsSum = sumOf(fixedConsumption);
+  if (fixedConsSum > 0 && totalInc > 0) {
+    const fRatio = (fixedConsSum / totalInc) * 100;
+    if (fRatio > 45) {
+      const cut = fixedConsSum * 0.1;
+      tips.push(`Fiksuotos išlaidos — <b>${fRatio.toFixed(0)}%</b> pajamų (${fmtAmount(fixedConsSum)}/mėn.). Čia didžiausias svertas: sumažinus vos 10% (${fmtAmount(cut)}/mėn.), investavus skirtumą 20 m. tai ≈ <b>${fmtAmount(futureValue(cut, 20))}</b>. Vienas sprendimas dėl būsto ar sutarties veikia kas mėnesį — skirtingai nei kasdienis savęs ribojimas.`);
+    }
+  }
+
+  // Over-budget consumption, expressed as forgone compounding rather than "saving".
   const overBudget = Object.entries(plan)
-    .filter(([cat, p]) => p > 0 && (expByCat[cat] || 0) > p)
+    .filter(([cat, p]) => p > 0 && !isInvestCat(cat) && (expByCat[cat] || 0) > p)
     .map(([cat, p]) => ({ cat, over: (expByCat[cat] || 0) - p, planned: p }))
     .sort((a,b) => b.over - a.over);
-
   if (overBudget.length > 0) {
     const o = overBudget[0];
     const n = overBudget.length;
     const catWord = n === 1 ? 'kategorijoje' : (n % 10 === 0 || (n % 100 >= 11 && n % 100 <= 19) ? 'kategorijų' : 'kategorijose');
-    tips.push(`Biudžetas viršytas <b>${n}</b> ${catWord}. Didžiausias viršijimas — „<b>${o.cat}</b>“: ${fmtAmount(expByCat[o.cat])} vietoj ${fmtAmount(o.planned)}. Grįžus prie plano sutaupytum <b>${annual(o.over)}</b> per metus.`);
-  } else if (Object.values(plan).some(v => v > 0)) {
-    tips.push('Visos kategorijos telpa į suplanuotą biudžetą 👍 Jei taip laikosi kelis mėnesius — apsvarstyk planų sumažinimą ir skirtumo taupymą.');
+    tips.push(`Vartojimo biudžetas viršytas ${n} ${catWord}; didžiausias — „<b>${o.cat}</b>“: ${fmtAmount(expByCat[o.cat])} vietoj ${fmtAmount(o.planned)}. Grąžinus prie plano ir investavus skirtumą, per 20 m. tai ≈ <b>${fmtAmount(futureValue(o.over, 20))}</b>. Alternatyvioji kaina svarbesnė už pačią sumą.`);
   }
 
-  // Concrete, quantified cut on the biggest controllable category.
-  const topVariable = Object.entries(groupByCat(variable)).sort((a,b) => b[1]-a[1])[0];
-  if (topVariable && topVariable[1] >= 30) {
-    const cut = topVariable[1] * 0.15;
-    tips.push(`Didžiausia valdoma kategorija — „<b>${topVariable[0]}</b>“ (${fmtAmount(topVariable[1])}). Sumažinus ją tik <b>15%</b>, sutaupytum ${fmtAmount(cut)}/mėn. arba <b>${annual(cut)}</b> per metus.`);
+  // The "latte factor" — only meaningful when expressed as compounded opportunity cost.
+  const smallCat = (function() {
+    const byCatTx = {};
+    variable.filter(e => !isInvestCat(e.cat)).forEach(e => {
+      if (!byCatTx[e.cat]) byCatTx[e.cat] = [];
+      byCatTx[e.cat].push(e.amount);
+    });
+    let best = null;
+    Object.entries(byCatTx).forEach(([cat, arr]) => {
+      const sum = arr.reduce((s,v) => s + v, 0);
+      if (arr.length >= 5 && sum / arr.length <= 15 && (!best || sum > best.sum)) best = { cat, sum, n: arr.length };
+    });
+    return best;
+  })();
+  if (smallCat && smallCat.sum >= 25) {
+    tips.push(`„<b>${smallCat.cat}</b>“ smulkiais pirkimais išeina ${fmtAmount(smallCat.sum)}/mėn. Investuojant tą pačią sumą 30 m. prie ~7%/m. susidarytų ≈ <b>${fmtAmount(futureValue(smallCat.sum, 30))}</b>. Tai nereiškia, kad reikia atsisakyti — bet verta žinoti tikslią kainą ir pasirinkti sąmoningai.`);
   }
 
-  if (totalInc > 0 && fixedSum > 0) {
-    const fRatio = (fixedSum / totalInc) * 100;
-    if (fRatio > 50) {
-      tips.push(`Fiksuotos išlaidos suryja <b>${fRatio.toFixed(0)}%</b> pajamų — tai mažina lankstumą. Peržiūrėk prenumeratas ir sutartis: net ${fmtAmount(20)}/mėn. sumažinimas duoda ${annual(20)} per metus.`);
-    } else if (fRatio <= 35) {
-      tips.push(`Fiksuotos išlaidos sudaro tik ${fRatio.toFixed(0)}% pajamų — sveika proporcija, palieka erdvės taupymui ir netikėtoms išlaidoms.`);
+  // Lifestyle creep: spending rising faster than income is the silent wealth killer.
+  if (prevHas) {
+    const prevFlows = splitFlows(prevData);
+    if (prevFlows.income > 0 && totalInc > prevFlows.income * 1.02 && prevFlows.consumptionSum > 0) {
+      const incGrow = ((totalInc - prevFlows.income) / prevFlows.income) * 100;
+      const consGrow = ((consumption - prevFlows.consumptionSum) / prevFlows.consumptionSum) * 100;
+      if (consGrow > incGrow + 3) {
+        tips.push(`<b>Gyvenimo būdo infliacija.</b> Pajamos augo ${incGrow.toFixed(0)}%, o vartojimas — ${consGrow.toFixed(0)}%. Kai vartojimas auga greičiau už pajamas, didesnis atlyginimas turto nesukuria. Taisyklė, kuri tai sustabdo: iš kiekvieno pajamų prieaugio bent 50% iškart nukreipk į investicijas.`);
+      } else if (incGrow > 5 && consGrow < incGrow) {
+        tips.push(`Pajamos augo ${incGrow.toFixed(0)}%, vartojimas tik ${consGrow.toFixed(0)}% — būtent taip ir turi būti. Skirtumas (${fmtAmount(totalInc - prevFlows.income - (consumption - prevFlows.consumptionSum))}) yra „nemokamas“ investuojamas pinigas, kurio net nepajusi.`);
+      }
     }
   }
 
-  if (savRate !== null) {
-    if (savRate < 0) {
-      tips.push(`Šį mėnesį išleista daugiau nei uždirbta (${fmtAmount(Math.abs(totalInc - totalExp))} minuso). Pirmas žingsnis — padengti skirtumą iš atsargų ir sumažinti didžiausią kintamą kategoriją.`);
-    } else if (savRate < 10) {
-      const target = totalInc * 0.2 - (totalInc - totalExp);
-      tips.push(`Santaupų norma ${savRate.toFixed(0)}% — žemiau rekomenduojamų 20%. Kad pasiektum 20%, reikėtų sutaupyti dar <b>${fmtAmount(target)}</b> per mėnesį.`);
-    } else if (savRate < 20) {
-      const target = totalInc * 0.2 - (totalInc - totalExp);
-      tips.push(`Santaupų norma ${savRate.toFixed(0)}% — jau neblogai. Iki „auksinės“ 20% ribos trūksta ${fmtAmount(target)} per mėnesį.`);
-    } else {
-      tips.push(`Santaupų norma <b>${savRate.toFixed(0)}%</b> — virš rekomenduojamų 20%. Jei taip laikosi nuolat, kitas žingsnis: atsargų fondas 3–6 mėn. išlaidoms (${fmtAmount(totalExp * 3)}–${fmtAmount(totalExp * 6)}), o po to investavimas.`);
-    }
-  }
-
-  if (totalExp > 0 && fixedSum > 0) {
-    tips.push(`Orientyras: atsargų fondas 3 mėn. tavo išlaidų ≈ <b>${fmtAmount(totalExp * 3)}</b>. Būtent tiek padeda išgyventi pajamų netekimą nesiskolinant.`);
+  if (investedNow > 0) {
+    tips.push(`Šį mėnesį į turtą nukreipei ${fmtAmount(investedNow)} — tai <b>ne išlaidos</b>, o pinigų perkėlimas iš vartojimo į kapitalą, todėl analizėje jie neskaičiuojami kaip išlaidos ir nesiūloma jų mažinti.`);
   }
 
   if (!prevHas && hist.length === 0) {
@@ -1153,13 +1340,14 @@ function generateInsights(data) {
 
 function renderReport() {
   const data = getEffectiveData();
-  const totalExp = data.expenses.reduce((s,e) => s + e.amount, 0);
-  const totalInc = data.income.reduce((s,e) => s + e.amount, 0);
+  const f = splitFlows(data);
+  const totalExp = f.consumptionSum;
+  const totalInc = f.income;
   const savings = totalInc - totalExp;
   const savRate = totalInc > 0 ? ((savings/totalInc)*100).toFixed(0) : '0';
+  const investRate = totalInc > 0 ? ((f.investedSum/totalInc)*100).toFixed(0) : '0';
 
-  const expByCat = {};
-  data.expenses.forEach(e => { expByCat[e.cat] = (expByCat[e.cat] || 0) + e.amount; });
+  const expByCat = groupByCat(f.consumption);
   const incByCat = {};
   data.income.forEach(e => { incByCat[e.cat] = (incByCat[e.cat] || 0) + e.amount; });
 
@@ -1199,17 +1387,21 @@ function renderReport() {
             </div>
           `).join('')}
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45;">${isCurrentRealMonth() ? '<b style="color:var(--yellow);">Mėnuo dar nesibaigė</b> — rodiklis preliminarus ir keisis. ' : ''}Tai orientacinis šios programėlės rodiklis, skaičiuojamas iš santaupų normos, biudžeto laikymosi, fiksuotų išlaidų dalies ir išlaidų stabilumo. Ne oficialus finansinio raštingumo testas.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:12px;line-height:1.45;">${isCurrentRealMonth() ? '<b style="color:var(--yellow);">Mėnuo dar nesibaigė</b> — rodiklis preliminarus ir keisis. ' : ''}Rodiklis skaičiuojamas iš pertekliaus normos, investavimo normos, vartojimo biudžeto laikymosi ir fiksuotų išlaidų naštos. Investicijos čia laikomos turto kaupimu, ne išlaidomis. Tai orientacinis šios programėlės vertinimas, ne oficialus finansinio raštingumo testas ir ne investavimo rekomendacija.</div>
       </div>`;
 
   document.getElementById('mainContent').innerHTML = `
     <div class="report-section">
       <div class="report-card">
         <div class="report-title">📋 ${monthName} — suvestinė</div>
-        <div class="report-row"><span class="label">Visos pajamos</span><span style="color:var(--green);font-weight:600;">${fmtAmount(totalInc)}</span></div>
-        <div class="report-row"><span class="label">Visos išlaidos</span><span style="color:var(--red);font-weight:600;">${fmtAmount(totalExp)}</span></div>
-        <div class="report-row"><span class="label">Santaupos</span><span style="color:${savings >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700;">${savings >= 0 ? '+' : ''}${fmtAmount(savings)}</span></div>
-        <div class="report-row"><span class="label">Santaupų rodiklis</span><span style="font-weight:600;">${savRate}%</span></div>
+        <div class="report-row"><span class="label">Pajamos</span><span style="color:var(--green);font-weight:600;">${fmtAmount(totalInc)}</span></div>
+        <div class="report-row"><span class="label">Vartojimo išlaidos</span><span style="color:var(--red);font-weight:600;">${fmtAmount(totalExp)}</span></div>
+        <div class="report-row"><span class="label">Perteklius</span><span style="color:${savings >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700;">${savings >= 0 ? '+' : ''}${fmtAmount(savings)}</span></div>
+        <div class="report-row"><span class="label">Pertekliaus norma</span><span style="font-weight:600;">${savRate}%</span></div>
+        ${f.investedSum > 0 ? `
+        <div class="report-row"><span class="label">📈 Investuota (ne išlaidos)</span><span style="color:var(--green);font-weight:700;">${fmtAmount(f.investedSum)}</span></div>
+        <div class="report-row"><span class="label">Investavimo norma</span><span style="font-weight:600;">${investRate}%</span></div>
+        <div class="report-row"><span class="label">Liko grynais</span><span style="font-weight:600;">${fmtAmount(savings - f.investedSum)}</span></div>` : ''}
         <div class="report-row"><span class="label">Įrašų skaičius</span><span>${data.expenses.length + data.income.length}</span></div>
       </div>
 
